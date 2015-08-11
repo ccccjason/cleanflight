@@ -1,8 +1,6 @@
 ![Cleanflight](docs/assets/cleanflight/cleanflight-logo-light-wide-1-240px.jpg)
 
-![Cleanflight](docs/assets/cleanflight/cleanflight-logo-light-wide-1-240px.jpg)
-
-# Fork for STM32F4XX - FC: VR µBrain -  168 Mhz
+## Fork for STM32F4XX - FC: VR µBrain -  168 Mhz
 http://www.virtualrobotix.it/index.php/it-IT/shop-virtualrobotix/autopilota/vrbrainmicro51-detail
 
 # Merged Boris B - Betaflight
