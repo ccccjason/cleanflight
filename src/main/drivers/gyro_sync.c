@@ -49,14 +49,9 @@ void gyroUpdateSampleRate(uint32_t looptime, uint8_t lpf) {
 
 #ifdef STM32F40_41xxx
     if (lpf == INV_FILTER_256HZ_NOLPF2) {
+    	// Max refresh rate 8khz (thx Boris)
         gyroSamplePeriod = 125;
-
-        if(!sensors(SENSOR_ACC)) {
-            minLooptime = 125;   // Max refresh 8khz
-        }
-        else {
-            minLooptime = 125;   // Max refresh 8khz
-        }
+		minLooptime = 125;
     }
     else {
         gyroSamplePeriod = 1000;
