@@ -39,7 +39,7 @@ FLASH_SIZE ?=
 FORKNAME			 = cleanflightF4
 
 VALID_TARGETS	 = NAZE NAZE32PRO OLIMEXINO STM32F3DISCOVERY CHEBUZZF3 CC3D CJMCU EUSTM32F103RC SPRACINGF3 PORT103R SPARKY ALIENWIIF1 ALIENWIIF3
-VALID_TARGETS	 += ANYFC REVO COLIBRI
+VALID_TARGETS	 += ANYFC REVO COLIBRI VRBRAIN
 
 # Valid targets for OP BootLoader support
 OPBL_VALID_TARGETS = CC3D
@@ -52,7 +52,7 @@ else ifeq ($(TARGET),$(filter $(TARGET),NAZE CC3D ALIENWIIF1 SPRACINGF3 OLIMEXIN
 FLASH_SIZE = 128
 else ifeq ($(TARGET),$(filter $(TARGET),EUSTM32F103RC PORT103R STM32F3DISCOVERY CHEBUZZF3 NAZE32PRO SPARKY ALIENWIIF3))
 FLASH_SIZE = 256
-else ifeq ($(TARGET),$(filter $(TARGET),ANYFC REVO COLIBRI))
+else ifeq ($(TARGET),$(filter $(TARGET),ANYFC REVO COLIBRI VRBRAIN))
 FLASH_SIZE = 256
 else
 $(error FLASH_SIZE not configured for target)
@@ -126,7 +126,7 @@ ifeq ($(TARGET),MASSIVEF3)
 TARGET_FLAGS := $(TARGET_FLAGS) -DSTM32F3DISCOVERY
 endif
 
-else ifeq ($(TARGET),$(filter $(TARGET),ANYFC REVO COLIBRI))
+else ifeq ($(TARGET),$(filter $(TARGET),ANYFC REVO COLIBRI VRBRAIN))
 
 STDPERIPH_DIR	= $(ROOT)/lib/main/STM32F4xx_StdPeriph_Driver
 STDPERIPH_SRC = $(notdir $(wildcard $(STDPERIPH_DIR)/src/*.c))
@@ -189,6 +189,10 @@ ifeq ($(TARGET),COLIBRI)
 DEVICE_FLAGS += -DHSE_VALUE=16000000
 LD_SCRIPT	 = $(LINKER_DIR)/stm32_flash_f405_bl.ld
 .DEFAULT_GOAL := binary
+endif
+ifeq ($(TARGET),VRBRAIN)
+DEVICE_FLAGS += -DHSE_VALUE=8000000
+LD_SCRIPT	 = $(LINKER_DIR)/stm32_flash_f4xx.ld
 endif
 TARGET_FLAGS = -D$(TARGET)
 
@@ -308,6 +312,7 @@ COMMON_SRC	 = build_config.c \
 		   drivers/serial.c \
 		   drivers/sound_beeper.c \
 		   drivers/system.c \
+		   drivers/gyro_sync.c \
 		   io/beeper.c \
 		   io/rc_controls.c \
 		   io/rc_curves.c \
@@ -602,6 +607,37 @@ COLIBRI_SRC = startup_stm32f40xx.s \
 		   $(VCPF4_SRC)
 
 REVO_SRC = startup_stm32f40xx.s \
+		   drivers/accgyro_spi_mpu6000.c \
+		   drivers/barometer_ms5611.c \
+		   drivers/pitotmeter_ms4525.c \
+		   drivers/compass_hmc5883l.c \
+		   drivers/adc.c \
+		   drivers/adc_stm32f4xx.c \
+		   drivers/bus_i2c_stm32f4xx.c \
+		   drivers/bus_spi.c \
+		   drivers/gpio_stm32f4xx.c \
+		   drivers/inverter.c \
+		   drivers/light_led_stm32f4xx.c \
+		   drivers/light_ws2811strip.c \
+		   drivers/light_ws2811strip_stm32f4xx.c \
+		   drivers/pwm_mapping.c \
+		   drivers/pwm_output.c \
+		   drivers/pwm_rx.c \
+		   drivers/serial_softserial.c \
+		   drivers/serial_escserial.c \
+		   drivers/serial_uart.c \
+		   drivers/serial_uart_stm32f4xx.c \
+		   drivers/sound_beeper_stm32f4xx.c \
+		   drivers/system_stm32f4xx.c \
+		   drivers/timer.c \
+		   drivers/timer_stm32f4xx.c \
+		   drivers/flash_m25p16.c \
+		   io/flashfs.c \
+		   $(HIGHEND_SRC) \
+		   $(COMMON_SRC) \
+		   $(VCPF4_SRC)
+
+VRBRAIN_SRC = startup_stm32f40xx.s \
 		   drivers/accgyro_spi_mpu6000.c \
 		   drivers/barometer_ms5611.c \
 		   drivers/pitotmeter_ms4525.c \

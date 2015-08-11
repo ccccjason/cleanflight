@@ -121,7 +121,7 @@ void initSpi1(void)
     gpio.mode = Mode_AF_PP;
     gpioInit(GPIOA, &gpio);
 
-#if defined(ANYFC)  || defined(REVO)
+#if defined(ANYFC) || defined(REVO) || defined(VRBRAIN)
     // NSS as gpio slave select
     gpio.pin = Pin_4;
     gpio.mode = Mode_Out_PP;
@@ -249,6 +249,24 @@ void initSpi2(void)
 
     gpio_config_t gpio;
 
+#ifdef VRBRAIN
+    // MOSI + SCK as output
+    gpio.mode = Mode_AF_PP;
+    gpio.pin = Pin_13;
+    gpio.speed = Speed_50MHz;
+    gpioInit(GPIOB, &gpio);
+
+    // MOSI + SCK as output
+    gpio.mode = Mode_AF_PP;
+    gpio.pin = Pin_15;
+    gpio.speed = Speed_50MHz;
+    gpioInit(GPIOB, &gpio);
+
+    // MISO as input
+    gpio.pin = Pin_14;
+    gpio.mode = Mode_AF_PP;
+    gpioInit(GPIOB, &gpio);
+#else
     // MOSI + SCK as output
     gpio.mode = Mode_AF_PP;
     gpio.pin = Pin_3;
@@ -265,6 +283,7 @@ void initSpi2(void)
     gpio.pin = Pin_2;
     gpio.mode = Mode_AF_PP;
     gpioInit(GPIOC, &gpio);
+#endif
 
 #ifdef COLIBRI
     RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
@@ -274,9 +293,24 @@ void initSpi2(void)
     gpioInit(GPIOB, &gpio);
 #endif
 
+#ifdef VRBRAIN
+    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
+    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOE, ENABLE);
+
+    // NSS as gpio slave select
+    gpio.pin = Pin_10;
+    gpio.mode = Mode_Out_PP;
+    gpioInit(GPIOE, &gpio);
+
+    GPIO_PinAFConfig(GPIOB, GPIO_PinSource13, GPIO_AF_SPI2);
+    GPIO_PinAFConfig(GPIOB, GPIO_PinSource14, GPIO_AF_SPI2);
+    GPIO_PinAFConfig(GPIOB, GPIO_PinSource15, GPIO_AF_SPI2);
+#else
     GPIO_PinAFConfig(GPIOB, GPIO_PinSource13, GPIO_AF_SPI2);
     GPIO_PinAFConfig(GPIOC, GPIO_PinSource2, GPIO_AF_SPI2);
     GPIO_PinAFConfig(GPIOC, GPIO_PinSource3, GPIO_AF_SPI2);
+#endif
+
 #endif
 
 
@@ -370,6 +404,22 @@ void initSpi3(void)
     gpio.pin = Pin_15;
     gpio.mode = Mode_Out_PP;
     gpioInit(GPIOA, &gpio);
+    GPIO_SetBits(GPIOA, Pin_15);
+#endif
+
+#ifdef VRBRAIN
+    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
+    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
+
+    // NSS as gpio slave select
+    gpio.pin = Pin_4;
+    gpio.mode = Mode_Out_PP;
+    gpioInit(GPIOA, &gpio);
+    GPIO_SetBits(GPIOB, Pin_4);
+
+    gpio.pin = Pin_15;
+    gpio.mode = Mode_Out_PP;
+    gpioInit(GPIOE, &gpio);
     GPIO_SetBits(GPIOA, Pin_15);
 #endif
 

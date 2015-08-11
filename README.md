@@ -1,7 +1,13 @@
-# Cleanflight
+![Cleanflight](docs/assets/cleanflight/cleanflight-logo-light-wide-1-240px.jpg)
 
 ![Cleanflight](docs/assets/cleanflight/cleanflight-logo-light-wide-1-240px.jpg)
 
+# Fork for STM32F4XX - FC: VR µBrain -  168 Mhz
+http://www.virtualrobotix.it/index.php/it-IT/shop-virtualrobotix/autopilota/vrbrainmicro51-detail
+
+# Merged Boris B - Betaflight
+
+# Cleanflight
 Clean-code version of baseflight flight-controller - flight controllers are used to fly multi-rotor craft and fixed wing craft.
 
 This fork differs from baseflight in that it attempts to use modern software development practices which result in:

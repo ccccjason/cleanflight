@@ -365,7 +365,7 @@ static const uint16_t airPWM[] = {
 };
 #endif
 
-#ifdef REVO
+#if defined(REVO) || defined(VRBRAIN)
 static const uint16_t multiPPM[] = {
     PWM1  | (MAP_TO_PPM_INPUT << 8),     // PPM input
     PWM7  | (MAP_TO_MOTOR_OUTPUT << 8),      // Swap to servo if needed

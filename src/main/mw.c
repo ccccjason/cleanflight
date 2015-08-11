@@ -25,6 +25,7 @@
 #include "common/maths.h"
 #include "common/axis.h"
 #include "common/color.h"
+#include "common/filter.h"
 
 #include "drivers/sensor.h"
 #include "drivers/accgyro.h"
@@ -36,6 +37,7 @@
 #include "drivers/serial.h"
 #include "drivers/timer.h"
 #include "drivers/pwm_rx.h"
+#include "drivers/gyro_sync.h"
 
 #include "sensors/sensors.h"
 #include "sensors/boardalignment.h"
@@ -73,8 +75,6 @@
 #include "flight/failsafe.h"
 #include "flight/autotune.h"
 #include "flight/navigation.h"
-#include "flight/filter.h"
-
 
 #include "config/runtime_config.h"
 #include "config/config.h"
@@ -89,12 +89,20 @@ enum {
     ALIGN_MAG = 2
 };
 
-/* for VBAT monitoring frequency */
-#define VBATFREQ 6        // to read battery voltage - nth number of loop iterations
+/* VBAT monitoring interval (in microseconds) - 1s*/
+#define VBATINTERVAL (6 * 3500)       
+/* IBat monitoring interval (in microseconds) - 6 default looptimes */
+#define IBATINTERVAL (6 * 3500)
+#define GYRO_WATCHDOG_DELAY 500  // Watchdog for boards without interrupt for gyro
+
+#define LOOP_DEADBAND 400 // Dead band for loop to modify to rcInterpolationFactor in RC Filtering for unstable looptimes
 
 uint32_t currentTime = 0;
 uint32_t previousTime = 0;
 uint16_t cycleTime = 0;         // this is the number in micro second to achieve a full loop, it can differ a little and is taken into account in the PID loop
+float dT;
+
+uint32_t motorsTime = 0;
 
 int16_t magHold;
 int16_t headFreeModeHold;
@@ -105,6 +113,8 @@ int16_t telemTemperature1;      // gyro sensor temperature
 static uint32_t disarmAt;     // Time of automatic disarm when "Don't spin the motors when armed" is enabled and auto_disarm_delay is nonzero
 
 extern uint8_t dynP8[3], dynI8[3], dynD8[3], PIDweight[3];
+
+static bool isRXdataNew;
 
 typedef void (*pidControllerFuncPtr)(pidProfile_t *pidProfile, controlRateConfig_t *controlRateConfig,
         uint16_t max_angle_inclination, rollAndPitchTrims_t *angleTrim, rxConfig_t *rxConfig);            // pid controller function prototype
@@ -175,10 +185,8 @@ void annexCode(void)
     int32_t tmp, tmp2;
     int32_t axis, prop1 = 0, prop2;
 
-    static batteryState_e batteryState = BATTERY_OK;
-    static uint8_t vbatTimer = 0;
-    static int32_t vbatCycleTime = 0;
-
+    static uint32_t vbatLastServiced = 0;
+    static uint32_t ibatLastServiced = 0;
     // PITCH & ROLL only dynamic PID adjustment,  depending on throttle value
     if (rcData[THROTTLE] < currentControlRateProfile->tpa_breakpoint) {
         prop2 = 100;
@@ -248,24 +256,19 @@ void annexCode(void)
         rcCommand[PITCH] = rcCommand_PITCH;
     }
 
-    if (feature(FEATURE_VBAT | FEATURE_CURRENT_METER)) {
-        vbatCycleTime += cycleTime;
-        if (!(++vbatTimer % VBATFREQ)) {
+    if (feature(FEATURE_VBAT)) {
+        if ((int32_t)(currentTime - vbatLastServiced) >= VBATINTERVAL) {
+            vbatLastServiced = currentTime;
+            updateBattery();
+        }
+    }
 
-            if (feature(FEATURE_VBAT)) {
-                updateBatteryVoltage();
-                batteryState = calculateBatteryState();
-                //handle beepers for battery levels
-                if (batteryState == BATTERY_CRITICAL)
-                    beeper(BEEPER_BAT_CRIT_LOW);    //critically low battery
-                else if (batteryState == BATTERY_WARNING)
-                    beeper(BEEPER_BAT_LOW);         //low battery
-            }
+    if (feature(FEATURE_CURRENT_METER)) {
+        int32_t ibatTimeSinceLastServiced = (int32_t) (currentTime - ibatLastServiced);
 
-            if (feature(FEATURE_CURRENT_METER)) {
-                updateCurrentMeter(vbatCycleTime, &masterConfig.rxConfig, masterConfig.flight3DConfig.deadband3d_throttle);
-            }
-            vbatCycleTime = 0;
+        if (ibatTimeSinceLastServiced >= IBATINTERVAL) {
+            ibatLastServiced = currentTime;
+            updateCurrentMeter((ibatTimeSinceLastServiced / 1000), &masterConfig.rxConfig, masterConfig.flight3DConfig.deadband3d_throttle);
         }
     }
 
@@ -443,17 +446,11 @@ typedef enum {
 #ifdef BARO
     UPDATE_BARO_TASK,
 #endif
-#ifdef PITOT
-    UPDATE_PITOT_TASK,
-#endif
 #ifdef SONAR
     UPDATE_SONAR_TASK,
 #endif
 #if defined(BARO) || defined(SONAR)
     CALCULATE_ALTITUDE_TASK,
-#endif
-#if defined(PITOT)
-    CALCULATE_AIRSPEED_TASK,
 #endif
     UPDATE_DISPLAY_TASK
 } periodicTasks;
@@ -481,20 +478,7 @@ void executePeriodicTasks(void)
         }
         break;
 #endif
-#ifdef PITOT
-    case UPDATE_PITOT_TASK:
-        if (sensors(SENSOR_PITOT)) {
-            pitotUpdate(currentTime);
-        }
-        break;
-#endif
-#if defined(PITOT)
-    case CALCULATE_AIRSPEED_TASK:
-        if (sensors(SENSOR_PITOT)) {
-            calculateAirspeed(currentTime);
-        }
-        break;
-#endif
+
 #if defined(BARO) || defined(SONAR)
     case CALCULATE_ALTITUDE_TASK:
 
@@ -706,6 +690,122 @@ void processRx(void)
 
 }
 
+// Gyro Low Pass
+void filterGyro(void) {
+    int axis;
+    static filterStatePt1_t gyroADCState[XYZ_AXIS_COUNT];
+
+    for (axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
+        gyroADC[axis] = filterApplyPt1(gyroADC[axis], &gyroADCState[axis], currentProfile->pidProfile.gyro_cut_hz, dT);
+    }
+}
+
+void getArmingChannel(modeActivationCondition_t *modeActivationConditions, uint8_t *armingChannel) {
+    for (int index = 0; index < MAX_MODE_ACTIVATION_CONDITION_COUNT; index++) {
+        modeActivationCondition_t *modeActivationCondition = &modeActivationConditions[index];
+        if (modeActivationCondition->modeId == BOXARM && IS_RANGE_USABLE(&modeActivationCondition->range)) {
+            *armingChannel = modeActivationCondition->auxChannelIndex +  NON_AUX_CHANNEL_COUNT;
+            break;
+        }
+    }
+}
+
+void filterRc(void){
+    static int16_t lastCommand[4] = { 0, 0, 0, 0 };
+    static int16_t deltaRC[4] = { 0, 0, 0, 0 };
+    static int16_t loop[5] = { 0, 0, 0, 0, 0 };
+    static int16_t factor, rcInterpolationFactor, loopAvg;
+    static uint32_t rxRefreshRate;
+    static int16_t lastAux, deltaAux;                            // last arming AUX position and delta for arming AUX
+	static uint8_t auxChannelToFilter;                           // AUX channel used for arming needs filtering when used
+	static int loopCount;
+
+    // Set RC refresh rate for sampling and channels to filter
+    if (!rxRefreshRate) {
+        if (feature(FEATURE_RX_PARALLEL_PWM | FEATURE_RX_PPM)) {
+            rxRefreshRate = 20000;
+
+            // AUX Channels to filter to replace PPM/PWM averaging
+            getArmingChannel(currentProfile->modeActivationConditions,&auxChannelToFilter);
+
+        }
+
+        // TODO Are there more different refresh rates?
+        else {
+    	    switch (masterConfig.rxConfig.serialrx_provider) {
+    	        case SERIALRX_SPEKTRUM1024:
+    	            rxRefreshRate = 22000;
+    	            break;
+    	        case SERIALRX_SPEKTRUM2048:
+    	            rxRefreshRate = 11000;
+    	            break;
+    	        case SERIALRX_SBUS:
+    	            rxRefreshRate = 11000;
+    	            break;
+    	        default:
+    	            rxRefreshRate = 10000;
+    	            break;
+            }
+        }
+
+        rcInterpolationFactor = 1; // Initial Factor before looptime average is calculated
+
+    }
+
+    // Averaging of cycleTime for more precise sampling
+    loop[loopCount] = cycleTime;
+    loopCount++;
+
+    // Start recalculating new rcInterpolationFactor every 5 loop iterations
+    if (loopCount > 4) {
+        uint16_t tmp = (loop[0] + loop[1] + loop[2] + loop[3] + loop[4]) / 5;
+
+        // Jitter tolerance to prevent rcInterpolationFactor jump too much
+        if (tmp > (loopAvg + LOOP_DEADBAND) || tmp < (loopAvg - LOOP_DEADBAND))  {
+            loopAvg = tmp;
+            rcInterpolationFactor = rxRefreshRate / loopAvg + 1;
+        }
+
+        loopCount = 0;
+     }
+
+    if (isRXdataNew) {
+        for (int channel=0; channel < 4; channel++) {
+        	deltaRC[channel] = rcData[channel] -  (lastCommand[channel] - deltaRC[channel] * factor / rcInterpolationFactor);
+            lastCommand[channel] = rcData[channel];
+        }
+
+        // Read AUX channel (arm/disarm guard enhancement)
+        if (auxChannelToFilter) {
+            deltaAux = rcData[auxChannelToFilter] - (lastAux - deltaAux * factor/rcInterpolationFactor);
+            lastAux = rcData[auxChannelToFilter];
+        }
+
+        isRXdataNew = false;
+        factor = rcInterpolationFactor - 1;
+        }
+
+    else {
+        factor--;
+    }
+
+    // Interpolate steps of rcData
+    if (factor > 0) {
+        for (int channel=0; channel < 4; channel++) {
+            rcData[channel] = lastCommand[channel] - deltaRC[channel] * factor/rcInterpolationFactor;
+         }
+
+        // Interpolate steps of Aux
+        if (auxChannelToFilter) {
+            rcData[auxChannelToFilter] = lastAux - deltaAux * factor/rcInterpolationFactor;
+        }
+    }
+
+    else {
+        factor = 0;
+    }
+}
+
 void loop(void)
 {
     static uint32_t loopTime;
@@ -717,6 +817,7 @@ void loop(void)
 
     if (shouldProcessRx(currentTime)) {
         processRx();
+        isRXdataNew = true;
 
 #ifdef BARO
         // the 'annexCode' initialses rcCommand, updateAltHoldState depends on valid rcCommand data.
@@ -751,8 +852,8 @@ void loop(void)
     }
 
     currentTime = micros();
-    if (masterConfig.looptime == 0 || (int32_t)(currentTime - loopTime) >= 0) {
-        loopTime = currentTime + masterConfig.looptime;
+    if (gyroSyncCheckUpdate() || (int32_t)(currentTime - loopTime) >= 0) {
+        loopTime = currentTime + targetLooptime + GYRO_WATCHDOG_DELAY;
 
         imuUpdate(&currentProfile->accelerometerTrims);
 
@@ -761,15 +862,13 @@ void loop(void)
         cycleTime = (int32_t)(currentTime - previousTime);
         previousTime = currentTime;
 
-        // Gyro Low Pass
-        if (currentProfile->pidProfile.gyro_cut_hz) {
-            int axis;
-            static filterStatePt1_t gyroADCState[XYZ_AXIS_COUNT];
+        dT = (float)cycleTime * 0.000001f;
 
-            for (axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-        	    gyroADC[axis] = filterApplyPt1(gyroADC[axis], &gyroADCState[axis], currentProfile->pidProfile.gyro_cut_hz);
-            }
+        if (currentProfile->pidProfile.gyro_cut_hz) {
+            filterGyro();
         }
+
+        filterRc();
 
         annexCode();
 #if defined(BARO) || defined(SONAR)
@@ -818,7 +917,6 @@ void loop(void)
             if ((FLIGHT_MODE(GPS_HOME_MODE) || FLIGHT_MODE(GPS_HOLD_MODE)) && STATE(GPS_FIX_HOME)) {
                 updateGpsStateForHomeAndHoldMode();
             }
-        	//debug[2]=(STATE(GPS_FIX)?10:0)+(STATE(GPS_FIX_HOME)?1:0);
         }
 #endif
 
@@ -839,7 +937,15 @@ void loop(void)
 #endif
 
         if (motorControlEnable) {
-            writeMotors();
+#ifdef VRBRAIN
+        	//Motors max refresh rate to 4 Khz
+            if ((int32_t)(currentTime - motorsTime) >= 0) {
+            	writeMotors();
+            	motorsTime = currentTime + 250;
+            }
+#else
+        	writeMotors();
+#endif
         }
 
 #ifdef BLACKBOX
