@@ -941,7 +941,7 @@ void loop(void)
         	//Motors max refresh rate to 4 Khz
             if ((int32_t)(currentTime - motorsTime) >= 0) {
             	writeMotors();
-            	motorsTime = currentTime + 250;
+            	motorsTime = currentTime + 260;
             }
 #else
         	writeMotors();
