@@ -41,7 +41,6 @@
 #include "sensors/compass.h"
 #include "sensors/acceleration.h"
 #include "sensors/barometer.h"
-#include "sensors/pitotmeter.h"
 #include "sensors/boardalignment.h"
 #include "sensors/battery.h"
 
@@ -76,7 +75,7 @@
 
 void useRcControlsConfig(modeActivationCondition_t *modeActivationConditions, escAndServoConfig_t *escAndServoConfigToUse, pidProfile_t *pidProfileToUse);
 
-#define FLASH_TO_RESERVE_FOR_CONFIG 0x1000
+#define FLASH_TO_RESERVE_FOR_CONFIG 0x800
 
 #if !defined(FLASH_SIZE)
 #error "Flash size not defined for target. (specify in KB)"
@@ -84,7 +83,11 @@ void useRcControlsConfig(modeActivationCondition_t *modeActivationConditions, es
 
 
 #ifndef FLASH_PAGE_SIZE
-    #ifdef STM32F303xC
+	#ifdef STM32F40_41xxx
+		#define FLASH_PAGE_SIZE                 ((uint32_t)0x20000)
+	#endif
+
+	#ifdef STM32F303xC
         #define FLASH_PAGE_SIZE                 ((uint16_t)0x800)
     #endif
 
@@ -94,10 +97,6 @@ void useRcControlsConfig(modeActivationCondition_t *modeActivationConditions, es
 
     #ifdef STM32F10X_HD
         #define FLASH_PAGE_SIZE                 ((uint16_t)0x800)
-    #endif
-
-    #ifdef STM32F40_41xxx
-        #define FLASH_PAGE_SIZE                 ((uint32_t)0x20000)
     #endif
 #endif
 
@@ -115,7 +114,7 @@ void useRcControlsConfig(modeActivationCondition_t *modeActivationConditions, es
 #ifdef STM32F40_41xxx
     #define FLASH_PAGE_COUNT 8 // just to make calculations work
 #else
-	#define FLASH_PAGE_COUNT ((FLASH_SIZE * 0x400) / FLASH_PAGE_SIZE)
+#define FLASH_PAGE_COUNT ((FLASH_SIZE * 0x400) / FLASH_PAGE_SIZE)
 #endif
 #endif
 
@@ -180,19 +179,19 @@ static void resetPidProfile(pidProfile_t *pidProfile)
     pidProfile->D8[PIDVEL] = 1;
 
     pidProfile->yaw_p_limit = YAW_P_LIMIT_MAX;
-    pidProfile->dterm_cut_hz = 0;
-    pidProfile->pterm_cut_hz = 0;
     pidProfile->gyro_cut_hz = 0;
+    pidProfile->pterm_cut_hz = 0;
+    pidProfile->dterm_cut_hz = 0;
 
-    pidProfile->P_f[ROLL] = 2.5f;     // new PID with preliminary defaults test carefully
-    pidProfile->I_f[ROLL] = 0.6f;
-    pidProfile->D_f[ROLL] = 0.06f;
-    pidProfile->P_f[PITCH] = 2.5f;
-    pidProfile->I_f[PITCH] = 0.6f;
-    pidProfile->D_f[PITCH] = 0.06f;
-    pidProfile->P_f[YAW] = 8.0f;
-    pidProfile->I_f[YAW] = 0.5f;
-    pidProfile->D_f[YAW] = 0.05f;
+    pidProfile->P_f[ROLL] = 1.5f;     // new PID with preliminary defaults test carefully
+    pidProfile->I_f[ROLL] = 0.4f;
+    pidProfile->D_f[ROLL] = 0.03f;
+    pidProfile->P_f[PITCH] = 1.5f;
+    pidProfile->I_f[PITCH] = 0.4f;
+    pidProfile->D_f[PITCH] = 0.03f;
+    pidProfile->P_f[YAW] = 2.5f;
+    pidProfile->I_f[YAW] = 1.0f;
+    pidProfile->D_f[YAW] = 0.00f;
     pidProfile->A_level = 5.0f;
     pidProfile->H_level = 3.0f;
     pidProfile->H_sensitivity = 75;
@@ -208,18 +207,6 @@ void resetGpsProfile(gpsProfile_t *gpsProfile)
     gpsProfile->nav_speed_min = 100;
     gpsProfile->nav_speed_max = 300;
     gpsProfile->ap_mode = 40;
-
-
-    // fw stuff
-    gpsProfile->fw_gps_maxcorr = 20;
-    gpsProfile->fw_gps_rudder = 15;
-    gpsProfile->fw_gps_maxclimb = 15;
-    gpsProfile->fw_gps_maxdive = 15;
-    gpsProfile->fw_climb_throttle = 1900;
-    gpsProfile->fw_cruise_throttle = 1500;
-    gpsProfile->fw_idle_throttle = 1300;
-    gpsProfile->fw_scaler_throttle = 8;
-    gpsProfile->fw_roll_comp = 1;
 }
 #endif
 
@@ -229,13 +216,6 @@ void resetBarometerConfig(barometerConfig_t *barometerConfig)
     barometerConfig->baro_noise_lpf = 0.6f;
     barometerConfig->baro_cf_vel = 0.985f;
     barometerConfig->baro_cf_alt = 0.965f;
-}
-
-void resetPitotmeterConfig(pitotmeterConfig_t *pitotmeterConfig)
-{
-	pitotmeterConfig->pitot_sample_count = 21;
-	pitotmeterConfig->pitot_noise_lpf = 0.6f;
-	pitotmeterConfig->pitot_scale = 1.00f;
 }
 
 void resetSensorAlignment(sensorAlignmentConfig_t *sensorAlignmentConfig)
@@ -276,6 +256,8 @@ void resetTelemetryConfig(telemetryConfig_t *telemetryConfig)
 void resetBatteryConfig(batteryConfig_t *batteryConfig)
 {
     batteryConfig->vbatscale = VBAT_SCALE_DEFAULT;
+    batteryConfig->vbatresdivval = VBAT_RESDIVVAL_DEFAULT;
+    batteryConfig->vbatresdivmultiplier = VBAT_RESDIVMULTIPLIER_DEFAULT;
     batteryConfig->vbatmaxcellvoltage = 43;
     batteryConfig->vbatmincellvoltage = 33;
     batteryConfig->vbatwarningcellvoltage = 35;
@@ -431,9 +413,18 @@ static void resetConf(void)
     masterConfig.rxConfig.rx_min_usec = 885;          // any of first 4 channels below this value will trigger rx loss detection
     masterConfig.rxConfig.rx_max_usec = 2115;         // any of first 4 channels above this value will trigger rx loss detection
 
+    for (i = 0; i < MAX_AUX_CHANNEL_COUNT; i++) {
+        rxFailsafeChannelConfiguration_t *channelFailsafeConfiguration = &masterConfig.rxConfig.failsafe_aux_channel_configurations[i];
+
+        channelFailsafeConfiguration->mode = RX_FAILSAFE_MODE_HOLD;
+        channelFailsafeConfiguration->step = CHANNEL_VALUE_TO_RXFAIL_STEP(masterConfig.rxConfig.midrc);
+    }
+
     masterConfig.rxConfig.rssi_channel = 0;
     masterConfig.rxConfig.rssi_scale = RSSI_SCALE_DEFAULT;
     masterConfig.rxConfig.rssi_ppm_invert = 0;
+
+    resetAllRxChannelRangeConfigurations(masterConfig.rxConfig.channelRanges);
 
     masterConfig.inputFilteringMode = INPUT_FILTERING_DISABLED;
 
@@ -486,7 +477,6 @@ static void resetConf(void)
     currentProfile->accDeadband.z = 40;
 
     resetBarometerConfig(&currentProfile->barometerConfig);
-    resetPitotmeterConfig(&currentProfile->pitotmeterConfig);
 
     currentProfile->acc_unarmedcal = 1;
 
@@ -738,9 +728,6 @@ void activateConfig(void)
 
 #ifdef BARO
     useBarometerConfig(&currentProfile->barometerConfig);
-#endif
-#ifdef PITOT
-    usePitotmeterConfig(&currentProfile->pitotmeterConfig);
 #endif
 }
 
@@ -1014,4 +1001,3 @@ uint32_t featureMask(void)
 {
     return masterConfig.enabledFeatures;
 }
-

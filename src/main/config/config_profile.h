@@ -33,7 +33,6 @@ typedef struct profile_s {
     accDeadband_t accDeadband;
 
     barometerConfig_t barometerConfig;
-    pitotmeterConfig_t pitotmeterConfig;
 
     uint8_t acc_unarmedcal;                 // turn automatic acc compensation on/off
 

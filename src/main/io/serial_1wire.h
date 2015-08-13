@@ -13,25 +13,19 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Ported from https://github.com/4712/BLHeliSuite/blob/master/Interfaces/Arduino1Wire/Source/Arduino1Wire_C/Arduino1Wire.c
+ *  by Nathan Tsoi <nathan@vertile.com>
  */
 
 #pragma once
 
-typedef enum {
-    INPUT_FILTERING_DISABLED = 0,
-    INPUT_FILTERING_ENABLED
-} inputFilteringMode_e;
+#ifdef USE_SERIAL_1WIRE
 
-#define PPM_RCVR_TIMEOUT            0
+typedef struct {
+  GPIO_TypeDef* gpio;
+  uint32_t pinpos;
+} escHardware_t;
 
-
-void ppmInConfig(const timerHardware_t *timerHardwarePtr);
-void ppmAvoidPWMTimerClash(const timerHardware_t *timerHardwarePtr, TIM_TypeDef *sharedPwmTimer);
-
-void pwmInConfig(const timerHardware_t *timerHardwarePtr, uint8_t channel);
-uint16_t pwmRead(uint8_t channel);
-
-bool isPPMDataBeingReceived(void);
-void resetPPMDataReceivedState(void);
-
-void pwmRxInit(inputFilteringMode_e initialInputFilteringMode);
+void usb1WirePassthrough(int8_t escIndex);
+#endif

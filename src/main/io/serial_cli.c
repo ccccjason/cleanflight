@@ -51,6 +51,7 @@
 #include "io/gimbal.h"
 #include "io/rc_controls.h"
 #include "io/serial.h"
+#include "io/serial_1wire.h"
 #include "io/ledstrip.h"
 #include "io/flashfs.h"
 #include "io/beeper.h"
@@ -65,7 +66,6 @@
 #include "sensors/gyro.h"
 #include "sensors/compass.h"
 #include "sensors/barometer.h"
-#include "sensors/pitotmeter.h"
 
 #include "flight/pid.h"
 #include "flight/imu.h"
@@ -80,8 +80,6 @@
 #include "config/config.h"
 #include "config/config_profile.h"
 #include "config/config_master.h"
-
-#include "drivers/serial_escserial.h"
 
 #include "common/printf.h"
 
@@ -100,6 +98,7 @@ void gpsEnablePassthrough(serialPort_t *gpsPassthroughPort);
 static serialPort_t *cliPort;
 
 static void cliAux(char *cmdline);
+static void cliRxFail(char *cmdline);
 static void cliAdjustmentRange(char *cmdline);
 static void cliMotorMix(char *cmdline);
 static void cliDefaults(char *cmdline);
@@ -119,12 +118,10 @@ static void cliSet(char *cmdline);
 static void cliGet(char *cmdline);
 static void cliStatus(char *cmdline);
 static void cliVersion(char *cmdline);
+static void cliRxRange(char *cmdline);
 
 #ifdef GPS
 static void cliGpsPassthrough(char *cmdline);
-#endif
-#ifdef USE_ESCSERIAL
-static void cliEscPassthrough(char *cmdline);
 #endif
 
 static void cliHelp(char *cmdline);
@@ -146,6 +143,10 @@ static void cliFlashErase(char *cmdline);
 static void cliFlashWrite(char *cmdline);
 static void cliFlashRead(char *cmdline);
 #endif
+#endif
+
+#ifdef USE_SERIAL_1WIRE
+static void cliUSB1Wire(char *cmdline);
 #endif
 
 // buffer
@@ -217,6 +218,9 @@ typedef struct {
 
 // should be sorted a..z for bsearch()
 const clicmd_t cmdTable[] = {
+#ifdef USE_SERIAL_1WIRE
+    CLI_COMMAND_DEF("1wire", "1-wire interface to escs", "<esc index>", cliUSB1Wire),
+#endif
     CLI_COMMAND_DEF("adjrange", "configure adjustment ranges", NULL, cliAdjustmentRange),
     CLI_COMMAND_DEF("aux", "configure modes", NULL, cliAux),
 #ifdef LED_STRIP
@@ -242,9 +246,6 @@ const clicmd_t cmdTable[] = {
 #ifdef GPS
     CLI_COMMAND_DEF("gpspassthrough", "passthrough gps to serial", NULL, cliGpsPassthrough),
 #endif
-#ifdef USE_ESCSERIAL
-    CLI_COMMAND_DEF("escprog", "passthrough esc to serial", "<mode [sk/bl]> <index>", cliEscPassthrough),
-#endif
     CLI_COMMAND_DEF("help", NULL, NULL, cliHelp),
 #ifdef LED_STRIP
     CLI_COMMAND_DEF("led", "configure leds", NULL, cliLed),
@@ -265,6 +266,8 @@ const clicmd_t cmdTable[] = {
         "[<index>]", cliProfile),
     CLI_COMMAND_DEF("rateprofile", "change rate profile",
         "[<index>]", cliRateProfile),
+    CLI_COMMAND_DEF("rxrange", "configure rx channel ranges", NULL, cliRxRange),
+    CLI_COMMAND_DEF("rxfail", "show/set rx failsafe settings", NULL, cliRxFail),
     CLI_COMMAND_DEF("save", "save and reboot", NULL, cliSave),
     CLI_COMMAND_DEF("serial", "configure serial ports", NULL, cliSerial),
 #ifdef USE_SERVOS
@@ -362,19 +365,6 @@ const clivalue_t valueTable[] = {
     { "nav_speed_min",              VAR_UINT16 | PROFILE_VALUE, &masterConfig.profile[0].gpsProfile.nav_speed_min, 10, 2000 },
     { "nav_speed_max",              VAR_UINT16 | PROFILE_VALUE, &masterConfig.profile[0].gpsProfile.nav_speed_max, 10, 2000 },
     { "nav_slew_rate",              VAR_UINT8  | PROFILE_VALUE, &masterConfig.profile[0].gpsProfile.nav_slew_rate, 0, 100 },
-
-
-    { "fw_gps_maxcorr", VAR_INT16| PROFILE_VALUE, &masterConfig.profile[0].gpsProfile.fw_gps_maxcorr, -45, 45 },
-    { "fw_gps_rudder", VAR_INT16| PROFILE_VALUE, &masterConfig.profile[0].gpsProfile.fw_gps_rudder, -45, 45 },
-    { "fw_gps_maxclimb", VAR_INT16| PROFILE_VALUE, &masterConfig.profile[0].gpsProfile.fw_gps_maxclimb, -45, 45 },
-    { "fw_gps_maxdive", VAR_INT16| PROFILE_VALUE, &masterConfig.profile[0].gpsProfile.fw_gps_maxdive, -45, 45 },
-    { "fw_climb_throttle", VAR_UINT16| PROFILE_VALUE, &masterConfig.profile[0].gpsProfile.fw_climb_throttle, 1000, 2000 },
-    { "fw_cruise_throttle", VAR_UINT16| PROFILE_VALUE, &masterConfig.profile[0].gpsProfile.fw_cruise_throttle, 1000, 2000 },
-    { "fw_idle_throttle", VAR_UINT16| PROFILE_VALUE, &masterConfig.profile[0].gpsProfile.fw_idle_throttle, 1000, 2000 },
-    { "fw_scaler_throttle", VAR_UINT16| PROFILE_VALUE, &masterConfig.profile[0].gpsProfile.fw_scaler_throttle, 0, 15 },
-    { "fw_roll_comp", VAR_FLOAT| PROFILE_VALUE, &masterConfig.profile[0].gpsProfile.fw_roll_comp, 0, 2 },
-    { "fw_rth_alt", VAR_UINT8| PROFILE_VALUE, &masterConfig.profile[0].pidProfile.D8[PIDPOSR], 0, 200 },
-
 #endif
 
     { "serialrx_provider",          VAR_UINT8  | MASTER_VALUE,  &masterConfig.rxConfig.serialrx_provider, 0, SERIALRX_PROVIDER_MAX },
@@ -470,10 +460,6 @@ const clivalue_t valueTable[] = {
     { "baro_cf_vel",                VAR_FLOAT  | PROFILE_VALUE, &masterConfig.profile[0].barometerConfig.baro_cf_vel, 0, 1 },
     { "baro_cf_alt",                VAR_FLOAT  | PROFILE_VALUE, &masterConfig.profile[0].barometerConfig.baro_cf_alt, 0, 1 },
 
-    { "pitot_tab_size",             VAR_UINT8  | PROFILE_VALUE, &masterConfig.profile[0].pitotmeterConfig.pitot_sample_count, 0, PITOT_SAMPLE_COUNT_MAX },
-    { "pitot_noise_lpf",            VAR_FLOAT  | PROFILE_VALUE, &masterConfig.profile[0].pitotmeterConfig.pitot_noise_lpf, 0, 1 },
-    { "pitot_scale",                VAR_FLOAT  | PROFILE_VALUE, &masterConfig.profile[0].pitotmeterConfig.pitot_scale, 0, 100 },
-
     { "mag_hardware",               VAR_UINT8  | MASTER_VALUE,  &masterConfig.mag_hardware, 0, MAG_MAX },
     { "mag_declination",            VAR_INT16  | PROFILE_VALUE, &masterConfig.profile[0].mag_declination, -18000, 18000 },
 
@@ -516,15 +502,19 @@ const clivalue_t valueTable[] = {
     { "d_vel",                      VAR_UINT8  | PROFILE_VALUE, &masterConfig.profile[0].pidProfile.D8[PIDVEL], 0, 200 },
 
     { "yaw_p_limit",                VAR_UINT16 | PROFILE_VALUE, &masterConfig.profile[0].pidProfile.yaw_p_limit, YAW_P_LIMIT_MIN, YAW_P_LIMIT_MAX },
-	{ "dterm_cut_hz",               VAR_UINT8  | PROFILE_VALUE, &masterConfig.profile[0].pidProfile.dterm_cut_hz, 0, 200 },
-	{ "pterm_cut_hz",               VAR_UINT8  | PROFILE_VALUE, &masterConfig.profile[0].pidProfile.pterm_cut_hz, 0, 200 },
 	{ "gyro_cut_hz",                VAR_UINT8  | PROFILE_VALUE, &masterConfig.profile[0].pidProfile.gyro_cut_hz, 0, 200 },
+	{ "pterm_cut_hz",               VAR_UINT8  | PROFILE_VALUE, &masterConfig.profile[0].pidProfile.pterm_cut_hz, 0, 200 },
+	{ "dterm_cut_hz",               VAR_UINT8  | PROFILE_VALUE, &masterConfig.profile[0].pidProfile.dterm_cut_hz, 0, 200 },
 
 #ifdef BLACKBOX
     { "blackbox_rate_num",          VAR_UINT8  | MASTER_VALUE,  &masterConfig.blackbox_rate_num, 1, 32 },
     { "blackbox_rate_denom",        VAR_UINT8  | MASTER_VALUE,  &masterConfig.blackbox_rate_denom, 1, 32 },
     { "blackbox_device",            VAR_UINT8  | MASTER_VALUE,  &masterConfig.blackbox_device, 0, 1 },
 #endif
+
+    { "magzero_x",                  VAR_INT16  | MASTER_VALUE, &masterConfig.magZero.raw[X], -32768, 32767 },
+    { "magzero_y",                  VAR_INT16  | MASTER_VALUE, &masterConfig.magZero.raw[Y], -32768, 32767 },
+    { "magzero_z",                  VAR_INT16  | MASTER_VALUE, &masterConfig.magZero.raw[Z], -32768, 32767 },
 };
 
 #define VALUE_COUNT (sizeof(valueTable) / sizeof(clivalue_t))
@@ -582,6 +572,73 @@ static char *processChannelRangeArgs(char *ptr, channelRange_t *range, uint8_t *
 static bool isEmpty(const char *string)
 {
     return *string == '\0';
+}
+
+static void cliRxFail(char *cmdline)
+{
+    uint8_t channel;
+    char buf[3];
+
+    if (isEmpty(cmdline)) {
+        // print out rxConfig failsafe settings
+        for (channel = 0; channel < MAX_AUX_CHANNEL_COUNT; channel++) {
+            cliRxFail(itoa(channel, buf, 10));
+        }
+    } else {
+        char *ptr = cmdline;
+
+        channel = atoi(ptr++);
+        if ((channel < MAX_AUX_CHANNEL_COUNT)) {
+
+            rxFailsafeChannelConfiguration_t *channelFailsafeConfiguration = &masterConfig.rxConfig.failsafe_aux_channel_configurations[channel];
+
+            uint16_t value;
+            rxFailsafeChannelMode_e mode;
+
+            ptr = strchr(ptr, ' ');
+            if (ptr) {
+                switch (*(++ptr)) {
+                    case 'h':
+                        mode = RX_FAILSAFE_MODE_HOLD;
+                        break;
+
+                    case 's':
+                        mode = RX_FAILSAFE_MODE_SET;
+                        break;
+                    default:
+                        cliShowParseError();
+                        return;
+                }
+            }
+
+            ptr = strchr(ptr, ' ');
+            if (ptr) {
+                value = atoi(++ptr);
+                value = CHANNEL_VALUE_TO_RXFAIL_STEP(value);
+                if (value > MAX_RXFAIL_RANGE_STEP) {
+                    cliPrint("Value out of range\r\n");
+                    return;
+                }
+
+                channelFailsafeConfiguration->mode = mode;
+                channelFailsafeConfiguration->step = value;
+            }
+
+            char modeCharacter = channelFailsafeConfiguration->mode == RX_FAILSAFE_MODE_SET ? 's' : 'h';
+            // triple use of printf below
+            // 1. acknowledge interpretation on command,
+            // 2. query current setting on single item,
+            // 3. recursive use for full list.
+
+            printf("rxfail %u %c %d\r\n",
+                channel,
+                modeCharacter,
+                RXFAIL_STEP_TO_CHANNEL_VALUE(channelFailsafeConfiguration->step)
+            );
+        } else {
+            printf("channel must be < %u\r\n", MAX_AUX_CHANNEL_COUNT);
+        }
+    }
 }
 
 static void cliAux(char *cmdline)
@@ -882,6 +939,51 @@ static void cliMotorMix(char *cmdline)
         }
     }
 #endif
+}
+
+static void cliRxRange(char *cmdline)
+{
+    int i, validArgumentCount = 0;
+    char *ptr;
+
+    if (isEmpty(cmdline)) {
+        for (i = 0; i < NON_AUX_CHANNEL_COUNT; i++) {
+            rxChannelRangeConfiguration_t *channelRangeConfiguration = &masterConfig.rxConfig.channelRanges[i];
+            printf("rxrange %u %u %u\r\n", i, channelRangeConfiguration->min, channelRangeConfiguration->max);
+        }
+    } else if (strcasecmp(cmdline, "reset") == 0) {
+        resetAllRxChannelRangeConfigurations(masterConfig.rxConfig.channelRanges);
+    } else {
+        ptr = cmdline;
+        i = atoi(ptr);
+        if (i >= 0 && i < NON_AUX_CHANNEL_COUNT) {
+            int rangeMin, rangeMax;
+
+            ptr = strchr(ptr, ' ');
+            if (ptr) {
+                rangeMin = atoi(++ptr);
+                validArgumentCount++;
+            }
+
+            ptr = strchr(ptr, ' ');
+            if (ptr) {
+                rangeMax = atoi(++ptr);
+                validArgumentCount++;
+            }
+
+            if (validArgumentCount != 2) {
+                cliShowParseError();
+            } else if (rangeMin < PWM_PULSE_MIN || rangeMin > PWM_PULSE_MAX || rangeMax < PWM_PULSE_MIN || rangeMax > PWM_PULSE_MAX || rangeMin >= rangeMax) {
+                cliShowParseError();
+            } else {
+                rxChannelRangeConfiguration_t *channelRangeConfiguration = &masterConfig.rxConfig.channelRanges[i];
+                channelRangeConfiguration->min = rangeMin;
+                channelRangeConfiguration->max = rangeMax;
+            }
+        } else {
+            cliShowArgumentRangeError("channel", 0, NON_AUX_CHANNEL_COUNT - 1);
+        }
+    }
 }
 
 #ifdef LED_STRIP
@@ -1405,6 +1507,9 @@ static void cliDump(char *cmdline)
 #endif
         printSectionBreak();
         dumpValues(MASTER_VALUE);
+
+        cliPrint("\r\n# rxfail\r\n");
+        cliRxFail("");
     }
 
     if (dumpMask & DUMP_PROFILE) {
@@ -1420,6 +1525,10 @@ static void cliDump(char *cmdline)
         cliPrint("\r\n# adjrange\r\n");
 
         cliAdjustmentRange("");
+
+        printf("\r\n# rxrange\r\n");
+
+        cliRxRange("");
 
         cliPrint("\r\n# servo\r\n");
 
@@ -1545,57 +1654,6 @@ static void cliGpsPassthrough(char *cmdline)
     gpsEnablePassthrough(cliPort);
 }
 #endif
-
-#ifdef USE_ESCSERIAL
-static void cliEscPassthrough(char *cmdline)
-{
-    uint8_t mode = 0;
-    int index = 0;
-    int i = 0;
-    char *pch = NULL;
-    char *saveptr;
-
-    if (isEmpty(cmdline)) {
-        cliShowParseError();
-        return;
-    }
-
-    pch = strtok_r(cmdline, " ", &saveptr);
-    while (pch != NULL) {
-        switch (i) {
-            case 0:
-            	if(strncasecmp(pch, "sk", strlen(pch)) == 0)
-            	{
-            		mode = 0;
-            	}
-            	else if(strncasecmp(pch, "bl", strlen(pch)) == 0)
-            	{
-            		mode = 1;
-            	}
-            	else
-            	{
-                    cliShowParseError();
-                    return;
-            	}
-                break;
-            case 1:
-            	index = atoi(pch);
-                if ((index >= 0) && (index < USABLE_TIMER_CHANNEL_COUNT)) {
-                    printf("passthru at pwm output %d enabled\r\n", index);
-                }
-                else {
-                    printf("invalid pwm output, valid range: 0 to %d\r\n", USABLE_TIMER_CHANNEL_COUNT);
-                    return;
-                }
-                break;
-        }
-        i++;
-        pch = strtok_r(NULL, " ", &saveptr);
-    }
-    escEnablePassthrough(cliPort,index,mode);
-}
-#endif
-
 
 static void cliHelp(char *cmdline)
 {
@@ -1996,8 +2054,8 @@ static void cliStatus(char *cmdline)
 {
     UNUSED(cmdline);
 
-    printf("System Uptime: %d seconds, Voltage: %d * 0.1V (%dS battery)\r\n",
-        millis() / 1000, vbat, batteryCellCount);
+    printf("System Uptime: %d seconds, Voltage: %d * 0.1V (%dS battery - %s)\r\n",
+        millis() / 1000, vbat, batteryCellCount, getBatteryStateString());
 
 
     printf("CPU Clock=%dMHz", (SystemCoreClock / 1000000));
@@ -2037,11 +2095,35 @@ static void cliStatus(char *cmdline)
     printf("Cycle Time: %d, I2C Errors: %d, config size: %d\r\n", cycleTime, i2cErrorCounter, sizeof(master_t));
 }
 
+#ifdef USE_SERIAL_1WIRE
+static void cliUSB1Wire(char *cmdline)
+{
+    int i;
+
+    if (isEmpty(cmdline)) {
+        cliPrint("Please specify a ouput channel. e.g. `1wire 2` to connect to motor 2\r\n");
+        return;
+    } else {
+        i = atoi(cmdline);
+        if (i >= 0 && i <= ESC_COUNT) {
+            printf("Switching to BlHeli mode on motor port %d\r\n", i);
+        }
+        else {
+            printf("Invalid motor port, valid range: 1 to %d\r\n", ESC_COUNT);
+        }
+    }
+    UNUSED(cmdline);
+    StopPwmAllMotors();
+    // motor 1 => index 0
+    usb1WirePassthrough(i-1);
+}
+#endif
+
 static void cliVersion(char *cmdline)
 {
     UNUSED(cmdline);
 
-    printf("# Cleanflight/%s %s %s / %s (%s)",
+    printf("# BetaFlight/%s %s %s / %s (%s)",
         targetName,
         FC_VERSION_STRING,
         buildDate,
