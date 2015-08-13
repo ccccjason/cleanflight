@@ -25,11 +25,6 @@
 #define LED1_PIN    Pin_15  // Red LEDs - PB4
 #define LED1_PERIPHERAL RCC_AHB1Periph_GPIOD
 
-#define INVERTER_PIN Pin_0 // PC0 used as inverter select GPIO
-#define INVERTER_GPIO GPIOC
-#define INVERTER_PERIPHERAL RCC_AHB1Periph_GPIOC
-#define INVERTER_USART USART1
-
 #define MPU6000_CS_GPIO       GPIOE
 #define MPU6000_CS_PIN        GPIO_Pin_10
 #define MPU6000_SPI_INSTANCE  SPI2
@@ -53,7 +48,6 @@
 
 #define MS4525_BUS I2C_DEVICE_EXT
 
-#define INVERTER
 #define LED0
 #define LED1
 
