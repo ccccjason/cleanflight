@@ -63,7 +63,6 @@
 #include "sensors/sensors.h"
 #include "sensors/sonar.h"
 #include "sensors/barometer.h"
-#include "sensors/pitotmeter.h"
 #include "sensors/compass.h"
 #include "sensors/acceleration.h"
 #include "sensors/gyro.h"
@@ -169,13 +168,14 @@ void init(void)
 #ifdef STM32F303xC
     SetSysClock();
 #endif
+#ifdef STM32F40_41xxx
+    // from system_stm32f4xx.c
+    void SetSysClock(void);
+#endif
 #ifdef STM32F10X
     // Configure the System clock frequency, HCLK, PCLK2 and PCLK1 prescalers
     // Configure the Flash Latency cycles and enable prefetch buffer
     SetSysClock(masterConfig.emf_avoidance);
-#endif
-#ifdef STM32F40_41xxx
-    SetSysClock();
 #endif
 
 #ifdef USE_HARDWARE_REVISION_DETECTION
@@ -355,7 +355,7 @@ void init(void)
         i2cInit(I2C_DEVICE);
     }
 #else
-#if defined(ANYFC) || defined(COLIBRI) || defined(REVO)
+#if defined(ANYFC) || defined(COLIBRI) || defined(REVO) || defined(VRBRAIN)
     i2cInit(I2C_DEVICE_INT);
     if (!doesConfigurationUsePort(SERIAL_PORT_USART3)) {
 #ifdef I2C_DEVICE_EXT
@@ -365,6 +365,7 @@ void init(void)
 #endif
 #endif
 #endif
+
 
 #ifdef USE_ADC
     drv_adc_config_t adc_params;
@@ -393,7 +394,7 @@ void init(void)
     }
 #endif
 
-    if (!sensorsAutodetect(&masterConfig.sensorAlignmentConfig, masterConfig.gyro_lpf, masterConfig.acc_hardware, masterConfig.mag_hardware, currentProfile->mag_declination, masterConfig.looptime)) {
+    if (!sensorsAutodetect(&masterConfig.sensorAlignmentConfig, masterConfig.gyro_lpf, masterConfig.acc_hardware, masterConfig.mag_hardware, currentProfile->mag_declination, masterConfig.looptime, masterConfig.syncGyroToLoop)) {
         // if gyro was not detected due to whatever reason, we give up now.
         failureMode(3);
     }
@@ -453,13 +454,7 @@ void init(void)
     ledStripInit(masterConfig.ledConfigs, masterConfig.colors);
 
     if (feature(FEATURE_LED_STRIP)) {
-#ifdef COLIBRI
-        if (!doesConfigurationUsePort(SERIAL_PORT_USART1)) {
-            ledStripEnable();
-        }
-#else
         ledStripEnable();
-#endif
     }
 #endif
 

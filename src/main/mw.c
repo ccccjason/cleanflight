@@ -45,7 +45,6 @@
 #include "sensors/compass.h"
 #include "sensors/acceleration.h"
 #include "sensors/barometer.h"
-#include "sensors/pitotmeter.h"
 #include "sensors/gyro.h"
 #include "sensors/battery.h"
 
@@ -81,6 +80,8 @@
 #include "config/config_profile.h"
 #include "config/config_master.h"
 
+#include "debug.h"
+
 // June 2013     V2.2-dev
 
 enum {
@@ -94,7 +95,6 @@ enum {
 /* IBat monitoring interval (in microseconds) - 6 default looptimes */
 #define IBATINTERVAL (6 * 3500)
 #define GYRO_WATCHDOG_DELAY 500  // Watchdog for boards without interrupt for gyro
-
 #define LOOP_DEADBAND 400 // Dead band for loop to modify to rcInterpolationFactor in RC Filtering for unstable looptimes
 
 uint32_t currentTime = 0;
@@ -806,6 +806,28 @@ void filterRc(void){
     }
 }
 
+// Function for loop trigger
+bool runLoop(uint32_t loopTime) {
+	bool loopTrigger = false;
+
+    if (masterConfig.syncGyroToLoop) {
+        if (ARMING_FLAG(ARMED)) {
+            if (gyroSyncCheckUpdate() || (int32_t)(currentTime - loopTime + GYRO_WATCHDOG_DELAY) >= 0) {
+            	loopTrigger = true;
+            }
+        }
+        // Blheli arming workaround (stable looptime prior to arming)
+        else if (!ARMING_FLAG(ARMED) && ((int32_t)(currentTime - loopTime) >= 0)) {
+        	loopTrigger = true;
+        }
+    }
+    else if ((int32_t)(currentTime - loopTime) >= 0){
+    	loopTrigger = true;
+    }
+
+    return loopTrigger;
+}
+
 void loop(void)
 {
     static uint32_t loopTime;
@@ -852,8 +874,9 @@ void loop(void)
     }
 
     currentTime = micros();
-    if (gyroSyncCheckUpdate() || (int32_t)(currentTime - loopTime) >= 0) {
-        loopTime = currentTime + targetLooptime + GYRO_WATCHDOG_DELAY;
+    if (runLoop(loopTime)) {
+
+        loopTime = currentTime + targetLooptime;
 
         imuUpdate(&currentProfile->accelerometerTrims);
 
@@ -868,7 +891,9 @@ void loop(void)
             filterGyro();
         }
 
-        filterRc();
+        if (masterConfig.rcSmoothing) {
+            filterRc();
+        }
 
         annexCode();
 #if defined(BARO) || defined(SONAR)
@@ -920,6 +945,12 @@ void loop(void)
         }
 #endif
 
+#ifdef VRBRAIN
+		//Motors max refresh rate to 4 Khz
+		if ((int32_t)(currentTime - motorsTime) >= 0) {
+			motorsTime = currentTime + 260;
+#endif
+
         // PID - note this is function pointer set by setPIDController()
         pid_controller(
             &currentProfile->pidProfile,
@@ -937,15 +968,7 @@ void loop(void)
 #endif
 
         if (motorControlEnable) {
-#ifdef VRBRAIN
-        	//Motors max refresh rate to 4 Khz
-            if ((int32_t)(currentTime - motorsTime) >= 0) {
-            	writeMotors();
-            	motorsTime = currentTime + 260;
-            }
-#else
-        	writeMotors();
-#endif
+            writeMotors();
         }
 
 #ifdef BLACKBOX
@@ -953,6 +976,11 @@ void loop(void)
             handleBlackbox();
         }
 #endif
+
+#ifdef VRBRAIN
+		}
+#endif
+
     }
 
 #ifdef TELEMETRY

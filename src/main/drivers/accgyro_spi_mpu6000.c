@@ -42,6 +42,8 @@
 #include "gyro_sync.h"
 
 static bool mpuSpi6000InitDone = false;
+//static uint32_t gyroSampleRate=0;
+
 
 // Registers
 #define MPU6000_PRODUCT_ID      	0x0C
@@ -370,7 +372,19 @@ void mpu6000SpiAccRead(int16_t *gyroData)
 void checkMPU6000Interrupt(bool *gyroIsUpdated) {
 	uint8_t mpuIntStatus;
 
+#ifdef STM32F40_41xxx
+    spiSetDivisor(MPU6000_SPI_INSTANCE, SPI_21MHZ_CLOCK_DIVIDER);
+#else
+    spiSetDivisor(MPU6000_SPI_INSTANCE, SPI_18MHZ_CLOCK_DIVIDER);  // 18 MHz SPI clock
+#endif
+
 	mpu6000ReadRegister(MPU6000_INT_STATUS, &mpuIntStatus, 1);
 
-	(mpuIntStatus) ? (*gyroIsUpdated= true) : (*gyroIsUpdated= false);
+	(mpuIntStatus) ? (*gyroIsUpdated=true) : (*gyroIsUpdated=false);
+	/*
+	if (*gyroIsUpdated){
+		debug[3]=micros()-gyroSampleRate;
+		gyroSampleRate = micros();
+	}
+	*/
 }

@@ -111,11 +111,11 @@ void useRcControlsConfig(modeActivationCondition_t *modeActivationConditions, es
 #endif
 
 #if defined(FLASH_SIZE)
-#ifdef STM32F40_41xxx
-    #define FLASH_PAGE_COUNT 8 // just to make calculations work
-#else
-#define FLASH_PAGE_COUNT ((FLASH_SIZE * 0x400) / FLASH_PAGE_SIZE)
-#endif
+	#ifdef STM32F40_41xxx
+    	#define FLASH_PAGE_COUNT 8 // just to make calculations work
+	#else
+		#define FLASH_PAGE_COUNT ((FLASH_SIZE * 0x400) / FLASH_PAGE_SIZE)
+	#endif
 #endif
 
 #if !defined(FLASH_PAGE_SIZE)
@@ -136,7 +136,7 @@ static uint32_t activeFeaturesLatch = 0;
 static uint8_t currentControlRateProfileIndex = 0;
 controlRateConfig_t *currentControlRateProfile;
 
-static const uint8_t EEPROM_CONF_VERSION = 103;
+static const uint8_t EEPROM_CONF_VERSION = 104;
 
 static void resetAccelerometerTrims(flightDynamicsTrims_t *accelerometerTrims)
 {
@@ -458,8 +458,9 @@ static void resetConf(void)
 
     resetSerialConfig(&masterConfig.serialConfig);
 
-    masterConfig.looptime = 3500;
+    masterConfig.looptime = 2000;
     masterConfig.emf_avoidance = 0;
+    masterConfig.syncGyroToLoop = 1;
 
     resetPidProfile(&currentProfile->pidProfile);
 
@@ -549,6 +550,7 @@ static void resetConf(void)
     masterConfig.escAndServoConfig.maxthrottle = 2000;
     masterConfig.motor_pwm_rate = 32000;
     masterConfig.looptime = 2000;
+    masterConfig.rcSmoothing = 1;
     currentProfile->pidProfile.pidController = 3;
     currentProfile->pidProfile.P8[ROLL] = 36;
     currentProfile->pidProfile.P8[PITCH] = 36;
@@ -890,11 +892,11 @@ void writeEEPROM(void)
 #endif
         for (wordOffset = 0; wordOffset < sizeof(master_t); wordOffset += 4) {
             if (wordOffset % FLASH_PAGE_SIZE == 0) {
-#ifdef STM32F40_41xxx
-            	status = FLASH_EraseSector(FLASH_Sector_11, VoltageRange_3);
-#else
-                status = FLASH_ErasePage(CONFIG_START_FLASH_ADDRESS + wordOffset);
-#endif
+				#ifdef STM32F40_41xxx
+            		status = FLASH_EraseSector(FLASH_Sector_11, VoltageRange_3);
+				#else
+            		status = FLASH_ErasePage(CONFIG_START_FLASH_ADDRESS + wordOffset);
+				#endif
                 if (status != FLASH_COMPLETE) {
                     break;
                 }

@@ -38,15 +38,12 @@
 
 #include "drivers/accgyro_spi_mpu6000.h"
 #include "drivers/accgyro_spi_mpu6500.h"
-
 #include "drivers/gyro_sync.h"
 
 #include "drivers/barometer.h"
 #include "drivers/barometer_bmp085.h"
+#include "drivers/barometer_bmp280.h"
 #include "drivers/barometer_ms5611.h"
-
-#include "drivers/pitotmeter.h"
-#include "drivers/pitotmeter_ms4525.h"
 
 #include "drivers/compass.h"
 #include "drivers/compass_hmc5883l.h"
@@ -62,7 +59,6 @@
 #include "sensors/sensors.h"
 #include "sensors/acceleration.h"
 #include "sensors/barometer.h"
-#include "sensors/pitotmeter.h"
 #include "sensors/gyro.h"
 #include "sensors/compass.h"
 #include "sensors/sonar.h"
@@ -77,7 +73,6 @@ extern float magneticDeclination;
 extern gyro_t gyro;
 extern baro_t baro;
 extern acc_t acc;
-extern pitot_t pitot;
 
 uint8_t detectedSensors[MAX_SENSORS_TO_DETECT] = { GYRO_NONE, ACC_NONE, BARO_NONE, MAG_NONE };
 
@@ -459,6 +454,14 @@ static void detectBaro()
                 break;
             }
 #endif
+	    ; // fallthough
+        case BARO_BMP280:
+#ifdef USE_BARO_BMP280
+            if (bmp280Detect(&baro)) {
+                baroHardware = BARO_BMP280;
+                break;
+            }
+#endif
         case BARO_NONE:
             baroHardware = BARO_NONE;
             break;
@@ -472,21 +475,6 @@ static void detectBaro()
     sensorsSet(SENSOR_BARO);
 #endif
 }
-
-
-static void detectPitot()
-{
-    // Detect what pressure sensors are available. baro->update() is set to sensor-specific update function
-#ifdef PITOT
-#ifdef USE_PITOT_MS4525
-    if (ms4525Detect(&pitot)) {
-    	return;
-    }
-#endif
-#endif
-    sensorsClear(SENSOR_PITOT);
-}
-
 
 static void detectMag(magSensor_e magHardwareToUse)
 {
@@ -523,26 +511,7 @@ static void detectMag(magSensor_e magHardwareToUse)
         hmc5883Config = &nazeHmc5883Config_v5;
     }
 #endif
-#ifdef ANYFC
-    hmc5883Config_t anyfcHmc5883Config;
-    anyfcHmc5883Config.gpioAHB1Peripherals = RCC_AHB1Periph_GPIOB;
-    anyfcHmc5883Config.gpioPin = Pin_7;
-    anyfcHmc5883Config.gpioPort = GPIOB;
-    hmc5883Config = &anyfcHmc5883Config;
-#endif
-#ifdef COLIBRI
-    hmc5883Config_t colibriHmc5883Config;
-    static const hmc5883Config_t colibriHmc5883Config = {
-		.gpioAHB1Peripherals = RCC_AHB1Periph_GPIOC,
-		.gpioPin = Pin_1,
-		.gpioPort = GPIOC,
-		.exti_port_source = EXTI_PortSourceGPIOC,
-		.exti_pin_source = EXTI_PinSource1,
-		.exti_line = EXTI_Line1,
-		.exti_irqn = EXTI1_IRQn
-	};
-    hmc5883Config = &colibriHmc5883Config;
-#endif
+
 #ifdef SPRACINGF3
     static const hmc5883Config_t spRacingF3Hmc5883Config = {
         .gpioAHBPeripherals = RCC_AHBPeriph_GPIOC,
@@ -556,6 +525,7 @@ static void detectMag(magSensor_e magHardwareToUse)
 
     hmc5883Config = &spRacingF3Hmc5883Config;
 #endif
+
 #endif
 
 retry:
@@ -585,17 +555,6 @@ retry:
                 magAlign = MAG_AK8975_ALIGN;
 #endif
                 magHardware = MAG_AK8975;
-                break;
-            }
-#endif
-            ; // fallthrough
-        case MAG_NAZA:
-#ifdef USE_MAG_NAZA
-            if (nazaGPSdetect(&mag)) {
-#ifdef MAG_NAZA_ALIGN
-                magAlign = MAG_NAZA_ALIGN;
-#endif
-                magHardware = MAG_NAZA;
                 break;
             }
 #endif
@@ -633,7 +592,7 @@ void reconfigureAlignment(sensorAlignmentConfig_t *sensorAlignmentConfig)
     }
 }
 
-bool sensorsAutodetect(sensorAlignmentConfig_t *sensorAlignmentConfig, uint16_t gyroLpf, uint8_t accHardwareToUse, uint8_t magHardwareToUse, int16_t magDeclinationFromConfig, uint32_t looptime)
+bool sensorsAutodetect(sensorAlignmentConfig_t *sensorAlignmentConfig, uint16_t gyroLpf, uint8_t accHardwareToUse, uint8_t magHardwareToUse, int16_t magDeclinationFromConfig, uint32_t looptime, uint8_t syncGyroToLoop)
 {
     int16_t deg, min;
 
@@ -645,16 +604,13 @@ bool sensorsAutodetect(sensorAlignmentConfig_t *sensorAlignmentConfig, uint16_t 
     }
     detectAcc(accHardwareToUse);
     detectBaro();
-    detectPitot();
 
 
     // Now time to init things, acc first
     if (sensors(SENSOR_ACC))
         acc.init();
-
-    gyroUpdateSampleRate(looptime, gyroLpf);  // Set gyro refresh rate before initialisation
-
     // this is safe because either mpu6050 or mpu3050 or lg3d20 sets it, and in case of fail, we never get here.
+    gyroUpdateSampleRate(looptime, gyroLpf, syncGyroToLoop);  // Set gyro refresh rate before initialisation
     gyro.init();
 
     detectMag(magHardwareToUse);

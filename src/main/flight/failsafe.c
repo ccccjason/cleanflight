@@ -30,6 +30,8 @@
 
 #include "flight/failsafe.h"
 
+#include "debug.h"
+
 /*
  * Usage:
  *
@@ -128,6 +130,8 @@ static void failsafeApplyControlInput(void)
         rcData[i] = rxConfig->midrc;
     }
     rcData[THROTTLE] = failsafeConfig->failsafe_throttle;
+    debug[1]=rcData[THROTTLE];
+    debug[2]=failsafeConfig->failsafe_throttle;
 }
 
 void failsafeOnValidDataReceived(void)
