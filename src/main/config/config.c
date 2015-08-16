@@ -461,6 +461,7 @@ static void resetConf(void)
     masterConfig.looptime = 2000;
     masterConfig.emf_avoidance = 0;
     masterConfig.syncGyroToLoop = 1;
+    masterConfig.rcSmoothing = 1;
 
     resetPidProfile(&currentProfile->pidProfile);
 

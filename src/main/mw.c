@@ -80,8 +80,6 @@
 #include "config/config_profile.h"
 #include "config/config_master.h"
 
-#include "debug.h"
-
 // June 2013     V2.2-dev
 
 enum {
@@ -693,13 +691,17 @@ void processRx(void)
 // Gyro Low Pass
 void filterGyro(void) {
     int axis;
+    static float dTGyro;
     static filterStatePt1_t gyroADCState[XYZ_AXIS_COUNT];
 
+    if (!dTGyro) {
+        dTGyro = (float)targetLooptime * 0.000001f;
+    }
+
     for (axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-        gyroADC[axis] = filterApplyPt1(gyroADC[axis], &gyroADCState[axis], currentProfile->pidProfile.gyro_cut_hz, dT);
+        gyroADC[axis] = filterApplyPt1(gyroADC[axis], &gyroADCState[axis], currentProfile->pidProfile.gyro_cut_hz, dTGyro);
     }
 }
-
 void getArmingChannel(modeActivationCondition_t *modeActivationConditions, uint8_t *armingChannel) {
     for (int index = 0; index < MAX_MODE_ACTIVATION_CONDITION_COUNT; index++) {
         modeActivationCondition_t *modeActivationCondition = &modeActivationConditions[index];
@@ -812,15 +814,16 @@ bool runLoop(uint32_t loopTime) {
 
     if (masterConfig.syncGyroToLoop) {
         if (ARMING_FLAG(ARMED)) {
-            if (gyroSyncCheckUpdate() || (int32_t)(currentTime - loopTime + GYRO_WATCHDOG_DELAY) >= 0) {
+            //if (gyroSyncCheckUpdate() || (int32_t)(currentTime - loopTime + GYRO_WATCHDOG_DELAY) >= 0) {
+			if (gyroSyncCheckUpdate() || (int32_t)(currentTime - loopTime) >= 0)
             	loopTrigger = true;
-            }
         }
         // Blheli arming workaround (stable looptime prior to arming)
         else if (!ARMING_FLAG(ARMED) && ((int32_t)(currentTime - loopTime) >= 0)) {
         	loopTrigger = true;
         }
     }
+
     else if ((int32_t)(currentTime - loopTime) >= 0){
     	loopTrigger = true;
     }
@@ -948,7 +951,7 @@ void loop(void)
 #ifdef VRBRAIN
 		//Motors max refresh rate to 4 Khz
 		if ((int32_t)(currentTime - motorsTime) >= 0) {
-			motorsTime = currentTime + 260;
+			motorsTime = currentTime + 510;
 #endif
 
         // PID - note this is function pointer set by setPIDController()

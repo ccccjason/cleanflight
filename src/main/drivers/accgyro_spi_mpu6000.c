@@ -41,8 +41,10 @@
 
 #include "gyro_sync.h"
 
+#include "debug.h"
+
 static bool mpuSpi6000InitDone = false;
-//static uint32_t gyroSampleRate=0;
+static uint32_t gyroSampleRate=0;
 
 
 // Registers
@@ -381,10 +383,12 @@ void checkMPU6000Interrupt(bool *gyroIsUpdated) {
 	mpu6000ReadRegister(MPU6000_INT_STATUS, &mpuIntStatus, 1);
 
 	(mpuIntStatus) ? (*gyroIsUpdated=true) : (*gyroIsUpdated=false);
-	/*
+
 	if (*gyroIsUpdated){
+		debug[2]=101;
 		debug[3]=micros()-gyroSampleRate;
 		gyroSampleRate = micros();
 	}
-	*/
+	else
+		debug[2]=102;
 }

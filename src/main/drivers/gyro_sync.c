@@ -100,8 +100,8 @@ void gyroUpdateSampleRate(uint32_t looptime, uint8_t lpf, uint8_t syncGyroToLoop
         looptime = constrain(looptime, minLooptime, 4000);
         mpuDivider  = (looptime + gyroSamplePeriod -1 ) / gyroSamplePeriod - 1;
         targetLooptime = (mpuDivider + 1) * gyroSamplePeriod;
-        //debug[0]=mpuDivider;
-        //debug[1]=targetLooptime;
+        debug[0]=mpuDivider;
+        debug[1]=targetLooptime;
         //debug[2]=looptime;
         //debug[3]=gyroSamplePeriod;
 
