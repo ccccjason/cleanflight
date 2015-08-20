@@ -179,9 +179,9 @@ static void resetPidProfile(pidProfile_t *pidProfile)
     pidProfile->D8[PIDVEL] = 1;
 
     pidProfile->yaw_p_limit = YAW_P_LIMIT_MAX;
-    pidProfile->gyro_cut_hz = 0;
-    pidProfile->pterm_cut_hz = 0;
-    pidProfile->dterm_cut_hz = 0;
+    pidProfile->gyro_cut_hz = 60;
+    pidProfile->pterm_cut_hz = 40;
+    pidProfile->dterm_cut_hz = 10;
 
     pidProfile->P_f[ROLL] = 1.5f;     // new PID with preliminary defaults test carefully
     pidProfile->I_f[ROLL] = 0.4f;
@@ -220,9 +220,15 @@ void resetBarometerConfig(barometerConfig_t *barometerConfig)
 
 void resetSensorAlignment(sensorAlignmentConfig_t *sensorAlignmentConfig)
 {
+#ifdef VRBRAIN
+    sensorAlignmentConfig->gyro_align = CW270_DEG;
+    sensorAlignmentConfig->acc_align = CW270_DEG;
+    sensorAlignmentConfig->mag_align = CW270_DEG_FLIP;
+#else
     sensorAlignmentConfig->gyro_align = ALIGN_DEFAULT;
     sensorAlignmentConfig->acc_align = ALIGN_DEFAULT;
     sensorAlignmentConfig->mag_align = ALIGN_DEFAULT;
+#endif
 }
 
 void resetEscAndServoConfig(escAndServoConfig_t *escAndServoConfig)

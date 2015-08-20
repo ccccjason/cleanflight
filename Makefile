@@ -351,7 +351,6 @@ HIGHEND_SRC  = flight/autotune.c \
 		   telemetry/smartport.c \
 		   sensors/sonar.c \
 		   sensors/barometer.c \
-		   sensors/pitotmeter.c \
 		   blackbox/blackbox.c \
 		   blackbox/blackbox_io.c
 
@@ -639,9 +638,6 @@ REVO_SRC = startup_stm32f40xx.s \
 
 VRBRAIN_SRC = startup_stm32f40xx.s \
 		   drivers/accgyro_spi_mpu6000.c \
-		   drivers/barometer_ms5611.c \
-		   drivers/pitotmeter_ms4525.c \
-		   drivers/compass_hmc5883l.c \
 		   drivers/adc.c \
 		   drivers/adc_stm32f4xx.c \
 		   drivers/bus_i2c_stm32f4xx.c \
@@ -662,7 +658,7 @@ VRBRAIN_SRC = startup_stm32f40xx.s \
 		   drivers/system_stm32f4xx.c \
 		   drivers/timer.c \
 		   drivers/timer_stm32f4xx.c \
-		   drivers/flash_m25p16.c \
+  		   drivers/flash_m25p16.c \
 		   io/flashfs.c \
 		   $(HIGHEND_SRC) \
 		   $(COMMON_SRC) \

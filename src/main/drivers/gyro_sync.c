@@ -26,8 +26,6 @@
 #include "config/runtime_config.h"
 #include "config/config.h"
 
-#include "debug.h"
-
 extern gyro_t gyro;
 
 uint32_t targetLooptime;
@@ -42,7 +40,7 @@ bool getMpuInterrupt(gyro_t *gyro)
 }
 
 bool gyroSyncCheckUpdate(void) {
-    return getMpuInterrupt(&gyro);
+	return getMpuInterrupt(&gyro);
 }
 
 void gyroUpdateSampleRate(uint32_t looptime, uint8_t lpf, uint8_t syncGyroToLoop) {
@@ -52,7 +50,7 @@ void gyroUpdateSampleRate(uint32_t looptime, uint8_t lpf, uint8_t syncGyroToLoop
     if (syncGyroToLoop) {
 #ifdef STM32F40_41xxx
     if (lpf == INV_FILTER_256HZ_NOLPF2) {
-    	// Max refresh rate 8khz (thx Boris)
+    	// Max refresh rate 8khz (Thanks Boris)
         gyroSamplePeriod = 125;
 		minLooptime = 125;
     }
@@ -100,11 +98,6 @@ void gyroUpdateSampleRate(uint32_t looptime, uint8_t lpf, uint8_t syncGyroToLoop
         looptime = constrain(looptime, minLooptime, 4000);
         mpuDivider  = (looptime + gyroSamplePeriod -1 ) / gyroSamplePeriod - 1;
         targetLooptime = (mpuDivider + 1) * gyroSamplePeriod;
-        debug[0]=mpuDivider;
-        debug[1]=targetLooptime;
-        //debug[2]=looptime;
-        //debug[3]=gyroSamplePeriod;
-
     }
     else {
     	mpuDivider = 0;

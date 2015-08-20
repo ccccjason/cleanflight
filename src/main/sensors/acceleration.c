@@ -171,18 +171,19 @@ void applyAccelerationTrims(flightDynamicsTrims_t *accelerationTrims)
 
 void updateAccelerationReadings(rollAndPitchTrims_t *rollAndPitchTrims)
 {
-    acc.read(accADC);
-    alignSensors(accADC, accADC, accAlign);
+    if (acc.read(accADC)){
+		alignSensors(accADC, accADC, accAlign);
 
-    if (!isAccelerationCalibrationComplete()) {
-        performAcclerationCalibration(rollAndPitchTrims);
+		if (!isAccelerationCalibrationComplete()) {
+			performAcclerationCalibration(rollAndPitchTrims);
+		}
+
+		if (feature(FEATURE_INFLIGHT_ACC_CAL)) {
+			performInflightAccelerationCalibration(rollAndPitchTrims);
+		}
+
+		applyAccelerationTrims(accelerationTrims);
     }
-
-    if (feature(FEATURE_INFLIGHT_ACC_CAL)) {
-        performInflightAccelerationCalibration(rollAndPitchTrims);
-    }
-
-    applyAccelerationTrims(accelerationTrims);
 }
 
 void setAccelerationTrims(flightDynamicsTrims_t *accelerationTrimsToUse)
