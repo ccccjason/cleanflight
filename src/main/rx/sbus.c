@@ -228,7 +228,7 @@ uint8_t sbusFrameStatus(void)
         debug[0] = sbusStateFlags;
 #endif
         // RX *should* still be sending valid channel data, so use it.
-        return SERIAL_RX_FRAME_COMPLETE | SERIAL_RX_FRAME_FAILSAFE;
+        //return SERIAL_RX_FRAME_COMPLETE | SERIAL_RX_FRAME_FAILSAFE;
     }
 
 #ifdef DEBUG_SBUS_PACKETS
