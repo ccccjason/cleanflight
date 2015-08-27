@@ -417,8 +417,13 @@ uartPort_t *serialUSART3(uint32_t baudRate, portMode_t mode, portOptions_t optio
         }
     }
 
+#if defined(VRBRAIN)
+    GPIO_PinAFConfig(USART3_GPIO, GPIO_PinSource9, GPIO_AF_USART3);
+    GPIO_PinAFConfig(USART3_GPIO, GPIO_PinSource8, GPIO_AF_USART3);
+#else
     GPIO_PinAFConfig(USART3_GPIO, GPIO_PinSource11, GPIO_AF_USART3);
     GPIO_PinAFConfig(USART3_GPIO, GPIO_PinSource10, GPIO_AF_USART3);
+#endif
 
     // DMA TX Interrupt
     NVIC_InitStructure.NVIC_IRQChannel = DMA1_Stream3_IRQn;

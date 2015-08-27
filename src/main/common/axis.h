@@ -37,7 +37,6 @@ typedef enum {
 typedef enum {
     AI_ROLL = 0,
     AI_PITCH,
-    AI_YAW,
 } angle_index_t;
 
-#define ANGLE_INDEX_COUNT 3
+#define ANGLE_INDEX_COUNT 2

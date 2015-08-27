@@ -49,6 +49,7 @@
 #include "drivers/flash_m25p16.h"
 #include "drivers/sonar_hcsr04.h"
 
+
 #include "rx/rx.h"
 
 #include "io/serial.h"
@@ -63,6 +64,7 @@
 #include "sensors/sensors.h"
 #include "sensors/sonar.h"
 #include "sensors/barometer.h"
+#include "sensors/pitotmeter.h"
 #include "sensors/compass.h"
 #include "sensors/acceleration.h"
 #include "sensors/gyro.h"
@@ -168,15 +170,15 @@ void init(void)
 #ifdef STM32F303xC
     SetSysClock();
 #endif
-#ifdef STM32F40_41xxx
-    // from system_stm32f4xx.c
-    void SetSysClock(void);
-#endif
 #ifdef STM32F10X
     // Configure the System clock frequency, HCLK, PCLK2 and PCLK1 prescalers
     // Configure the Flash Latency cycles and enable prefetch buffer
     SetSysClock(masterConfig.emf_avoidance);
 #endif
+#ifdef STM32F40_41xxx
+    SetSysClock();
+#endif
+
 
 #ifdef USE_HARDWARE_REVISION_DETECTION
     detectHardwareRevision();
@@ -366,7 +368,6 @@ void init(void)
 #endif
 #endif
 
-
 #ifdef USE_ADC
     drv_adc_config_t adc_params;
 
@@ -394,7 +395,7 @@ void init(void)
     }
 #endif
 
-    if (!sensorsAutodetect(&masterConfig.sensorAlignmentConfig, masterConfig.gyro_lpf, masterConfig.acc_hardware, masterConfig.mag_hardware, currentProfile->mag_declination, masterConfig.looptime, masterConfig.syncGyroToLoop)) {
+    if (!sensorsAutodetect(&masterConfig.sensorAlignmentConfig, masterConfig.gyro_lpf, masterConfig.acc_hardware, masterConfig.mag_hardware, masterConfig.baro_hardware, currentProfile->mag_declination, masterConfig.looptime, masterConfig.syncGyroToLoop)) {
         // if gyro was not detected due to whatever reason, we give up now.
         failureMode(3);
     }

@@ -168,8 +168,8 @@ void initSpi1(void)
 #ifndef SPI2_GPIO
 #define SPI2_GPIO               GPIOB
 #define SPI2_GPIO_PERIPHERAL    RCC_AHBPeriph_GPIOB
-#define SPI2_NSS_PIN            GPIO_Pin_12
-#define SPI2_NSS_PIN_SOURCE     GPIO_PinSource12
+#define SPI2_NSS_PIN            GPIO_Pin_10
+#define SPI2_NSS_PIN_SOURCE     GPIO_PinSource10
 #define SPI2_SCK_PIN            GPIO_Pin_13
 #define SPI2_SCK_PIN_SOURCE     GPIO_PinSource13
 #define SPI2_MISO_PIN           GPIO_Pin_14
@@ -240,48 +240,6 @@ void initSpi2(void)
 #endif
 
 #ifdef STM32F40_41xxx
-
-#ifdef VRBRAIN
-    GPIO_InitTypeDef GPIO_InitStructure;
-
-	// Init pins
-	GPIO_InitStructure.GPIO_Pin = SPI2_SCK_PIN;
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
-	GPIO_Init(SPI2_GPIO, &GPIO_InitStructure);
-
-	GPIO_InitStructure.GPIO_Pin = SPI2_MISO_PIN;
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-	GPIO_InitStructure.GPIO_OType = GPIO_OType_OD;
-	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-	GPIO_Init(SPI2_GPIO, &GPIO_InitStructure);
-
-	GPIO_InitStructure.GPIO_Pin = SPI2_MOSI_PIN;
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
-	GPIO_Init(SPI2_GPIO, &GPIO_InitStructure);
-
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
-	GPIO_Init(GPIOE, &GPIO_InitStructure);
-
-	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
-    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOE, ENABLE);
-
-    GPIO_PinAFConfig(SPI2_GPIO, GPIO_PinSource13, GPIO_AF_SPI2);
-    GPIO_PinAFConfig(SPI2_GPIO, GPIO_PinSource14, GPIO_AF_SPI2);
-    GPIO_PinAFConfig(SPI2_GPIO, GPIO_PinSource15, GPIO_AF_SPI2);
-	GPIO_PinAFConfig(GPIOE, GPIO_PinSource10, GPIO_AF_SPI2);
-
-#else
     // Specific to the STM32F405
     // SPI2 Driver
     // PC3    17    SPI2_MOSI
@@ -291,6 +249,7 @@ void initSpi2(void)
 
     gpio_config_t gpio;
 
+    /*
     // MOSI + SCK as output
     gpio.mode = Mode_AF_PP;
     gpio.pin = Pin_3;
@@ -307,12 +266,33 @@ void initSpi2(void)
     gpio.pin = Pin_2;
     gpio.mode = Mode_AF_PP;
     gpioInit(GPIOC, &gpio);
+    */
+    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
 
-    GPIO_PinAFConfig(GPIOB, GPIO_PinSource13, GPIO_AF_SPI2);
-    GPIO_PinAFConfig(GPIOC, GPIO_PinSource2, GPIO_AF_SPI2);
-    GPIO_PinAFConfig(GPIOC, GPIO_PinSource3, GPIO_AF_SPI2);
+    // SCK as output
+    gpio.mode = Mode_AF_PP;
+    gpio.pin = Pin_13;
+    gpio.speed = Speed_50MHz;
+    gpioInit(GPIOB, &gpio);
 
-#endif
+    // MOSI + SCK as output
+    gpio.mode = Mode_AF_PP;
+    gpio.pin = Pin_15;
+    gpio.speed = Speed_50MHz;
+    gpioInit(GPIOB, &gpio);
+
+    // MISO as input
+    gpio.pin = Pin_14;
+    gpio.mode = Mode_AF_PP;
+    gpio.speed = Speed_50MHz;
+    gpioInit(GPIOB, &gpio);
+
+    // NSS as gpio slave select
+    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOE, ENABLE);
+    gpio.pin = Pin_10;
+    gpio.speed = Speed_50MHz;
+    gpio.mode = Mode_Out_PP;
+    gpioInit(GPIOE, &gpio);
 
 #ifdef COLIBRI
     RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
@@ -322,7 +302,16 @@ void initSpi2(void)
     gpioInit(GPIOB, &gpio);
 #endif
 
+/*
+    GPIO_PinAFConfig(GPIOB, GPIO_PinSource13, GPIO_AF_SPI2);
+    GPIO_PinAFConfig(GPIOC, GPIO_PinSource2, GPIO_AF_SPI2);
+    GPIO_PinAFConfig(GPIOC, GPIO_PinSource3, GPIO_AF_SPI2);
+*/
+    GPIO_PinAFConfig(GPIOB, GPIO_PinSource13, GPIO_AF_SPI2);
+    GPIO_PinAFConfig(GPIOB, GPIO_PinSource14, GPIO_AF_SPI2);
+    GPIO_PinAFConfig(GPIOB, GPIO_PinSource15, GPIO_AF_SPI2);
 #endif
+
 
     // Init SPI2 hardware
     SPI_I2S_DeInit(SPI2);
@@ -333,7 +322,8 @@ void initSpi2(void)
     spi.SPI_CPOL = SPI_CPOL_High;
     spi.SPI_CPHA = SPI_CPHA_2Edge;
     spi.SPI_NSS = SPI_NSS_Soft;
-    spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_8;
+    //spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_8;
+    spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_4;
     spi.SPI_FirstBit = SPI_FirstBit_MSB;
     spi.SPI_CRCPolynomial = 7;
 
@@ -345,6 +335,7 @@ void initSpi2(void)
     SPI_Cmd(SPI2, ENABLE);
 
     // Drive NSS high to disable connected SPI device.
+    //GPIO_SetBits(SPI2_GPIO, SPI2_NSS_PIN);
     GPIO_SetBits(GPIOE, SPI2_NSS_PIN);
 }
 #endif
@@ -373,10 +364,8 @@ void initSpi3(void)
     RCC_APB1PeriphResetCmd(RCC_APB1Periph_SPI3, ENABLE);
 
 #ifdef STM32F40_41xxx
+    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
 
-#ifdef REVO
-    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
-    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
     // Specific to the STM32F405
     // SPI3 Driver
     // PC12    17    SPI3_MOSI
@@ -404,6 +393,8 @@ void initSpi3(void)
     gpio.speed = Speed_50MHz;
     gpioInit(GPIOC, &gpio);
 
+#ifdef REVO
+    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOE, ENABLE);
 
     // NSS as gpio slave select
     gpio.pin = Pin_3;
@@ -418,49 +409,20 @@ void initSpi3(void)
 #endif
 
 #ifdef VRBRAIN
-    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
     RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOE, ENABLE);
 
-    GPIO_InitTypeDef GPIO_InitStructure;
-
-	// Init pins
-	GPIO_InitStructure.GPIO_Pin = SPI3_SCK_PIN;
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
-	GPIO_Init(SPI3_GPIO, &GPIO_InitStructure);
-
-	GPIO_InitStructure.GPIO_Pin = SPI3_MISO_PIN;
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-	GPIO_InitStructure.GPIO_OType = GPIO_OType_OD;
-	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-	GPIO_Init(SPI3_GPIO, &GPIO_InitStructure);
-
-	GPIO_InitStructure.GPIO_Pin = SPI3_MOSI_PIN;
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
-	GPIO_Init(SPI3_GPIO, &GPIO_InitStructure);
-
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_15;
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
-	GPIO_Init(GPIOE, &GPIO_InitStructure);
-
-	GPIO_PinAFConfig(GPIOE, GPIO_PinSource15, GPIO_AF_SPI3);
-
-	#endif
-
-    GPIO_PinAFConfig(SPI3_GPIO, SPI3_SCK_PIN_SOURCE, GPIO_AF_SPI3);
-    GPIO_PinAFConfig(SPI3_GPIO, SPI3_MISO_PIN_SOURCE, GPIO_AF_SPI3);
-    GPIO_PinAFConfig(SPI3_GPIO, SPI3_MOSI_PIN_SOURCE, GPIO_AF_SPI3);
+    // NSS as gpio slave select
+    gpio.pin = Pin_15;
+    gpio.mode = Mode_Out_PP;
+    gpio.speed = Speed_50MHz;
+    gpioInit(GPIOE, &gpio);
 #endif
 
+
+    GPIO_PinAFConfig(GPIOC, GPIO_PinSource10, GPIO_AF_SPI3);
+    GPIO_PinAFConfig(GPIOC, GPIO_PinSource11, GPIO_AF_SPI3);
+    GPIO_PinAFConfig(GPIOC, GPIO_PinSource12, GPIO_AF_SPI3);
+#endif
 
     // Init SPI2 hardware
     SPI_I2S_DeInit(SPI3);
@@ -474,6 +436,7 @@ void initSpi3(void)
     spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_8;
     spi.SPI_FirstBit = SPI_FirstBit_MSB;
     spi.SPI_CRCPolynomial = 7;
+
     SPI_Init(SPI3, &spi);
     SPI_Cmd(SPI3, ENABLE);
 

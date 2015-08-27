@@ -26,7 +26,6 @@
 #include "drivers/flash_m25p16.h"
 #include "drivers/bus_spi.h"
 #include "drivers/system.h"
-#include "debug.h"
 
 #define M25P16_INSTRUCTION_RDID             0x9F
 #define M25P16_INSTRUCTION_READ_BYTES       0x03
@@ -138,7 +137,7 @@ static bool m25p16_readIdentification()
     uint8_t in[4];
     uint32_t chipID;
 
-    delay(100); // short delay required after initialisation of SPI device instance.
+    delay(50); // short delay required after initialisation of SPI device instance.
 
     /* Just in case transfer fails and writes nothing, so we don't try to verify the ID against random garbage
      * from the stack:
@@ -147,8 +146,6 @@ static bool m25p16_readIdentification()
 
     ENABLE_M25P16;
 
-    delay(100); // short delay required after initialisation of SPI device instance.
-
     spiTransfer(M25P16_SPI_INSTANCE, in, out, sizeof(out));
 
     // Clearing the CS bit terminates the command early so we don't have to read the chip UID:
@@ -156,14 +153,7 @@ static bool m25p16_readIdentification()
 
     // Manufacturer, memory type, and capacity
     chipID = (in[1] << 16) | (in[2] << 8) | (in[3]);
-
-    chipID = JEDEC_ID_MICRON_N25Q128;
-
-    //debug[0]=chipID;
-    //debug[1]=in[1];
-    //debug[2]=in[2];
-    //debug[3]=in[3];
-
+    chipID = JEDEC_ID_MACRONIX_MX25L3206E;
 
     // All supported chips use the same pagesize of 256 bytes
     switch (chipID) {
@@ -212,14 +202,11 @@ static bool m25p16_readIdentification()
 bool m25p16_init()
 {
     //Maximum speed for standard READ command is 20mHz, other commands tolerate 25mHz
-#ifdef STM32F40_41xxx
-    //spiSetDivisor(M25P16_SPI_INSTANCE, SPI_21MHZ_CLOCK_DIVIDER);
-    //spiSetDivisor(M25P16_SPI_INSTANCE, 2);
-	//spiSetDivisor(M25P16_SPI_INSTANCE, SPI_18MHZ_CLOCK_DIVIDER);
-	spiSetDivisor(M25P16_SPI_INSTANCE, SPI_0_5625MHZ_CLOCK_DIVIDER);
-#else
+//#ifdef STM32F40_41xxx
+//    spiSetDivisor(M25P16_SPI_INSTANCE, SPI_21MHZ_CLOCK_DIVIDER);
+//#else
     spiSetDivisor(M25P16_SPI_INSTANCE, SPI_18MHZ_CLOCK_DIVIDER);
-#endif
+//#endif
 
     return m25p16_readIdentification();
 }

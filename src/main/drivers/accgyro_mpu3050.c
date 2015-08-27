@@ -28,7 +28,6 @@
 #include "sensor.h"
 #include "accgyro.h"
 #include "accgyro_mpu3050.h"
-#include "gyro_sync.h"
 
 
 
@@ -43,7 +42,6 @@
 #define MPU3050_GYRO_OUT        0x1D
 #define MPU3050_USER_CTRL       0x3D
 #define MPU3050_PWR_MGM         0x3E
-#define MPU3050_INT_STATUS      0x1A
 
 // Bits
 #define MPU3050_FS_SEL_2000DPS  0x18
@@ -62,7 +60,6 @@ static uint8_t mpuLowPassFilter = MPU3050_DLPF_42HZ;
 static void mpu3050Init(void);
 static void mpu3050Read(int16_t *gyroADC);
 static void mpu3050ReadTemp(int16_t *tempData);
-static void checkMPU3050Interrupt(bool *gyroIsUpdated);
 
 bool mpu3050Detect(gyro_t *gyro, uint16_t lpf)
 {
@@ -70,14 +67,13 @@ bool mpu3050Detect(gyro_t *gyro, uint16_t lpf)
 
     delay(25); // datasheet page 13 says 20ms. other stuff could have been running meanwhile. but we'll be safe
 
-    ack = i2cWrite(MPU3050_ADDRESS, MPU3050_SMPLRT_DIV, 0);
+    ack = i2cWrite(MPU3050_ADDRESS, MPU3050_SMPLRT_DIV, 0, MPU6050_BUS);
     if (!ack)
         return false;
 
     gyro->init = mpu3050Init;
     gyro->read = mpu3050Read;
     gyro->temperature = mpu3050ReadTemp;
-    gyro->intStatus = checkMPU3050Interrupt;
 
     // 16.4 dps/lsb scalefactor
     gyro->scale = 1.0f / 16.4f;
@@ -114,14 +110,14 @@ static void mpu3050Init(void)
 
     delay(25); // datasheet page 13 says 20ms. other stuff could have been running meanwhile. but we'll be safe
 
-    ack = i2cWrite(MPU3050_ADDRESS, MPU3050_SMPLRT_DIV, 0);
+    ack = i2cWrite(MPU3050_ADDRESS, MPU3050_SMPLRT_DIV, 0, MPU6050_BUS);
     if (!ack)
         failureMode(3);
 
-    i2cWrite(MPU3050_ADDRESS, MPU3050_DLPF_FS_SYNC, MPU3050_FS_SEL_2000DPS | mpuLowPassFilter);
-    i2cWrite(MPU3050_ADDRESS, MPU3050_INT_CFG, 0);
-    i2cWrite(MPU3050_ADDRESS, MPU3050_USER_CTRL, MPU3050_USER_RESET);
-    i2cWrite(MPU3050_ADDRESS, MPU3050_PWR_MGM, MPU3050_CLK_SEL_PLL_GX);
+    i2cWrite(MPU3050_ADDRESS, MPU3050_DLPF_FS_SYNC, MPU3050_FS_SEL_2000DPS | mpuLowPassFilter, MPU6050_BUS);
+    i2cWrite(MPU3050_ADDRESS, MPU3050_INT_CFG, 0, MPU6050_BUS);
+    i2cWrite(MPU3050_ADDRESS, MPU3050_USER_CTRL, MPU3050_USER_RESET, MPU6050_BUS);
+    i2cWrite(MPU3050_ADDRESS, MPU3050_PWR_MGM, MPU3050_CLK_SEL_PLL_GX, MPU6050_BUS);
 }
 
 // Read 3 gyro values into user-provided buffer. No overrun checking is done.
@@ -129,7 +125,7 @@ static void mpu3050Read(int16_t *gyroADC)
 {
     uint8_t buf[6];
 
-    i2cRead(MPU3050_ADDRESS, MPU3050_GYRO_OUT, 6, buf);
+    i2cRead(MPU3050_ADDRESS, MPU3050_GYRO_OUT, 6, buf, MPU6050_BUS);
 
     gyroADC[0] = (int16_t)((buf[0] << 8) | buf[1]);
     gyroADC[1] = (int16_t)((buf[2] << 8) | buf[3]);
@@ -139,15 +135,7 @@ static void mpu3050Read(int16_t *gyroADC)
 static void mpu3050ReadTemp(int16_t *tempData)
 {
     uint8_t buf[2];
-    i2cRead(MPU3050_ADDRESS, MPU3050_TEMP_OUT, 2, buf);
+    i2cRead(MPU3050_ADDRESS, MPU3050_TEMP_OUT, 2, buf, MPU6050_BUS);
 
     *tempData = 35 + ((int32_t)(buf[0] << 8 | buf[1]) + 13200) / 280;
-}
-
-void checkMPU3050Interrupt(bool *gyroIsUpdated) {
-	uint8_t mpuIntStatus;
-
-	i2cRead(MPU3050_ADDRESS, MPU3050_INT_STATUS, 1, &mpuIntStatus);
-
-	(mpuIntStatus) ? (*gyroIsUpdated= true) : (*gyroIsUpdated= false);
 }

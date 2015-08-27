@@ -48,9 +48,9 @@ OPBL_VALID_TARGETS = CC3D
 ifeq ($(FLASH_SIZE),)
 ifeq ($(TARGET),$(filter $(TARGET),CJMCU))
 FLASH_SIZE = 64
-else ifeq ($(TARGET),$(filter $(TARGET),NAZE CC3D ALIENWIIF1 SPRACINGF3 OLIMEXINO))
+else ifeq ($(TARGET),$(filter $(TARGET),NAZE CC3D ALIENWIIF1 OLIMEXINO))
 FLASH_SIZE = 128
-else ifeq ($(TARGET),$(filter $(TARGET),EUSTM32F103RC PORT103R STM32F3DISCOVERY CHEBUZZF3 NAZE32PRO SPARKY ALIENWIIF3))
+else ifeq ($(TARGET),$(filter $(TARGET),EUSTM32F103RC PORT103R STM32F3DISCOVERY CHEBUZZF3 NAZE32PRO SPRACINGF3 SPARKY ALIENWIIF3))
 FLASH_SIZE = 256
 else ifeq ($(TARGET),$(filter $(TARGET),ANYFC REVO COLIBRI VRBRAIN))
 FLASH_SIZE = 256
@@ -183,7 +183,7 @@ endif
 ifeq ($(TARGET),REVO)
 DEVICE_FLAGS += -DHSE_VALUE=8000000
 LD_SCRIPT	 = $(LINKER_DIR)/stm32_flash_f405_bl.ld
-.DEFAULT_GOAL := binary
+#.DEFAULT_GOAL := binary
 endif
 ifeq ($(TARGET),COLIBRI)
 DEVICE_FLAGS += -DHSE_VALUE=16000000
@@ -299,6 +299,7 @@ COMMON_SRC	 = build_config.c \
 		   common/printf.c \
 		   common/typeconversion.c \
 		   common/encoding.c \
+		   common/filter.c \
 		   main.c \
 		   mw.c \
 		   flight/altitudehold.c \
@@ -307,7 +308,6 @@ COMMON_SRC	 = build_config.c \
 		   flight/imu.c \
 		   flight/mixer.c \
 		   flight/lowpass.c \
-		   flight/filter.c \
 		   drivers/bus_i2c_soft.c \
 		   drivers/serial.c \
 		   drivers/sound_beeper.c \
@@ -351,6 +351,7 @@ HIGHEND_SRC  = flight/autotune.c \
 		   telemetry/smartport.c \
 		   sensors/sonar.c \
 		   sensors/barometer.c \
+		   sensors/pitotmeter.c \
 		   blackbox/blackbox.c \
 		   blackbox/blackbox_io.c
 
@@ -615,7 +616,6 @@ REVO_SRC = startup_stm32f40xx.s \
 		   drivers/bus_i2c_stm32f4xx.c \
 		   drivers/bus_spi.c \
 		   drivers/gpio_stm32f4xx.c \
-		   drivers/inverter.c \
 		   drivers/light_led_stm32f4xx.c \
 		   drivers/light_ws2811strip.c \
 		   drivers/light_ws2811strip_stm32f4xx.c \
@@ -638,12 +638,14 @@ REVO_SRC = startup_stm32f40xx.s \
 
 VRBRAIN_SRC = startup_stm32f40xx.s \
 		   drivers/accgyro_spi_mpu6000.c \
+		   drivers/barometer_ms5611.c \
+		   drivers/pitotmeter_ms4525.c \
+		   drivers/compass_hmc5883l.c \
 		   drivers/adc.c \
 		   drivers/adc_stm32f4xx.c \
 		   drivers/bus_i2c_stm32f4xx.c \
 		   drivers/bus_spi.c \
 		   drivers/gpio_stm32f4xx.c \
-		   drivers/inverter.c \
 		   drivers/light_led_stm32f4xx.c \
 		   drivers/light_ws2811strip.c \
 		   drivers/light_ws2811strip_stm32f4xx.c \
@@ -658,7 +660,7 @@ VRBRAIN_SRC = startup_stm32f40xx.s \
 		   drivers/system_stm32f4xx.c \
 		   drivers/timer.c \
 		   drivers/timer_stm32f4xx.c \
-  		   drivers/flash_m25p16.c \
+		   drivers/flash_m25p16.c \
 		   io/flashfs.c \
 		   $(HIGHEND_SRC) \
 		   $(COMMON_SRC) \

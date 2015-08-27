@@ -83,11 +83,7 @@ void useRcControlsConfig(modeActivationCondition_t *modeActivationConditions, es
 
 
 #ifndef FLASH_PAGE_SIZE
-	#ifdef STM32F40_41xxx
-		#define FLASH_PAGE_SIZE                 ((uint32_t)0x20000)
-	#endif
-
-	#ifdef STM32F303xC
+    #ifdef STM32F303xC
         #define FLASH_PAGE_SIZE                 ((uint16_t)0x800)
     #endif
 
@@ -98,6 +94,10 @@ void useRcControlsConfig(modeActivationCondition_t *modeActivationConditions, es
     #ifdef STM32F10X_HD
         #define FLASH_PAGE_SIZE                 ((uint16_t)0x800)
     #endif
+
+	#ifdef STM32F40_41xxx
+    	#define FLASH_PAGE_SIZE                 ((uint32_t)0x20000)
+	#endif
 #endif
 
 #if !defined(FLASH_SIZE) && !defined(FLASH_PAGE_COUNT)
@@ -111,11 +111,11 @@ void useRcControlsConfig(modeActivationCondition_t *modeActivationConditions, es
 #endif
 
 #if defined(FLASH_SIZE)
-	#ifdef STM32F40_41xxx
-    	#define FLASH_PAGE_COUNT 8 // just to make calculations work
-	#else
-		#define FLASH_PAGE_COUNT ((FLASH_SIZE * 0x400) / FLASH_PAGE_SIZE)
-	#endif
+#ifdef STM32F40_41xxx
+    #define FLASH_PAGE_COUNT 8 // just to make calculations work
+#else
+	#define FLASH_PAGE_COUNT ((FLASH_SIZE * 0x400) / FLASH_PAGE_SIZE)
+#endif
 #endif
 
 #if !defined(FLASH_PAGE_SIZE)
@@ -136,7 +136,7 @@ static uint32_t activeFeaturesLatch = 0;
 static uint8_t currentControlRateProfileIndex = 0;
 controlRateConfig_t *currentControlRateProfile;
 
-static const uint8_t EEPROM_CONF_VERSION = 104;
+static const uint8_t EEPROM_CONF_VERSION = 105;
 
 static void resetAccelerometerTrims(flightDynamicsTrims_t *accelerometerTrims)
 {
@@ -179,7 +179,7 @@ static void resetPidProfile(pidProfile_t *pidProfile)
     pidProfile->D8[PIDVEL] = 1;
 
     pidProfile->yaw_p_limit = YAW_P_LIMIT_MAX;
-    pidProfile->gyro_cut_hz = 60;
+    pidProfile->gyro_cut_hz = 0;
     pidProfile->pterm_cut_hz = 40;
     pidProfile->dterm_cut_hz = 10;
 
@@ -220,15 +220,9 @@ void resetBarometerConfig(barometerConfig_t *barometerConfig)
 
 void resetSensorAlignment(sensorAlignmentConfig_t *sensorAlignmentConfig)
 {
-#ifdef VRBRAIN
-    sensorAlignmentConfig->gyro_align = CW270_DEG;
-    sensorAlignmentConfig->acc_align = CW270_DEG;
-    sensorAlignmentConfig->mag_align = CW270_DEG_FLIP;
-#else
     sensorAlignmentConfig->gyro_align = ALIGN_DEFAULT;
     sensorAlignmentConfig->acc_align = ALIGN_DEFAULT;
     sensorAlignmentConfig->mag_align = ALIGN_DEFAULT;
-#endif
 }
 
 void resetEscAndServoConfig(escAndServoConfig_t *escAndServoConfig)
@@ -391,7 +385,7 @@ static void resetConf(void)
     masterConfig.current_profile_index = 0;     // default profile
     masterConfig.gyro_cmpf_factor = 600;        // default MWC
     masterConfig.gyro_cmpfm_factor = 250;       // default MWC
-    masterConfig.gyro_lpf = 42;                 // supported by all gyro drivers now. In case of ST gyro, will default to 32Hz instead
+    masterConfig.gyro_lpf = 188;                // supported by all gyro drivers now. In case of ST gyro, will default to 32Hz instead
 
     resetAccelerometerTrims(&masterConfig.accZero);
 
@@ -406,6 +400,7 @@ static void resetConf(void)
     masterConfig.gyroConfig.gyroMovementCalibrationThreshold = 32;
 
     masterConfig.mag_hardware = MAG_DEFAULT;     // default/autodetect
+    masterConfig.baro_hardware = BARO_DEFAULT;   // default/autodetect
 
     resetBatteryConfig(&masterConfig.batteryConfig);
 
@@ -464,7 +459,7 @@ static void resetConf(void)
 
     resetSerialConfig(&masterConfig.serialConfig);
 
-    masterConfig.looptime = 2000;
+    masterConfig.looptime = 0;
     masterConfig.emf_avoidance = 0;
     masterConfig.syncGyroToLoop = 1;
     masterConfig.rcSmoothing = 1;
@@ -556,7 +551,7 @@ static void resetConf(void)
     masterConfig.escAndServoConfig.minthrottle = 1000;
     masterConfig.escAndServoConfig.maxthrottle = 2000;
     masterConfig.motor_pwm_rate = 32000;
-    masterConfig.looptime = 2000;
+    masterConfig.looptime = 0;
     masterConfig.rcSmoothing = 1;
     currentProfile->pidProfile.pidController = 3;
     currentProfile->pidProfile.P8[ROLL] = 36;

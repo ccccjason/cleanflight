@@ -18,21 +18,36 @@
 #pragma once
 #define TARGET_BOARD_IDENTIFIER "REVO"
 
+/*
 #define LED0_GPIO   GPIOB
 #define LED0_PIN    Pin_5 // Blue LEDs - PB5
 #define LED0_PERIPHERAL RCC_AHB1Periph_GPIOB
 #define LED1_GPIO   GPIOB
 #define LED1_PIN    Pin_4  // Orange LEDs - PB4
 #define LED1_PERIPHERAL RCC_AHB1Periph_GPIOB
+*/
 
+#define LED0_GPIO   GPIOD
+#define LED0_PIN    Pin_14 // Blue LEDs - PB5
+#define LED0_PERIPHERAL RCC_AHB1Periph_GPIOD
+#define LED1_GPIO   GPIOD
+#define LED1_PIN    Pin_15  // Red LEDs - PB4
+#define LED1_PERIPHERAL RCC_AHB1Periph_GPIOD
+
+/*
 #define INVERTER_PIN Pin_0 // PC0 used as inverter select GPIO
 #define INVERTER_GPIO GPIOC
 #define INVERTER_PERIPHERAL RCC_AHB1Periph_GPIOC
 #define INVERTER_USART USART1
+*/
 
-#define MPU6000_CS_GPIO       GPIOA
-#define MPU6000_CS_PIN        GPIO_Pin_4
-#define MPU6000_SPI_INSTANCE  SPI1
+//#define MPU6000_CS_GPIO       GPIOA
+//#define MPU6000_CS_PIN        GPIO_Pin_4
+//#define MPU6000_SPI_INSTANCE  SPI1
+
+#define MPU6000_CS_GPIO       GPIOE
+#define MPU6000_CS_PIN        GPIO_Pin_10
+#define MPU6000_SPI_INSTANCE  SPI2
 
 #define ACC
 #define USE_ACC_SPI_MPU6000
@@ -55,12 +70,17 @@
 //#define USE_PITOT_MS4525
 #define MS4525_BUS I2C_DEVICE_EXT
 
-#define INVERTER
+//#define INVERTER
 #define LED0
 #define LED1
 
+/*
 #define M25P16_CS_GPIO        GPIOB
 #define M25P16_CS_PIN         GPIO_Pin_3
+#define M25P16_SPI_INSTANCE   SPI3
+*/
+#define M25P16_CS_GPIO        GPIOE
+#define M25P16_CS_PIN         GPIO_Pin_15
 #define M25P16_SPI_INSTANCE   SPI3
 
 #define USE_FLASHFS
@@ -70,6 +90,7 @@
 
 #define USE_VCP
 
+/*
 #define USE_USART1
 #define USART1_RX_PIN Pin_10
 #define USART1_TX_PIN Pin_9
@@ -90,6 +111,28 @@
 #define USART6_GPIO GPIOC
 #define USART6_APB2_PERIPHERALS RCC_APB2Periph_USART6
 #define USART6_AHB1_PERIPHERALS RCC_AHB1Periph_GPIOC
+*/
+
+#define USE_USART1
+#define USART1_RX_PIN Pin_7
+#define USART1_TX_PIN Pin_6
+#define USART1_GPIO GPIOB
+#define USART1_APB2_PERIPHERALS RCC_APB2Periph_USART1
+#define USART1_AHB1_PERIPHERALS RCC_AHB1Periph_GPIOB|RCC_AHB1Periph_DMA2
+
+#define USE_USART3
+#define USART3_RX_PIN Pin_9
+#define USART3_TX_PIN Pin_8
+#define USART3_GPIO GPIOD
+#define USART3_APB1_PERIPHERALS RCC_APB1Periph_USART3
+#define USART3_AHB1_PERIPHERALS RCC_AHB1Periph_GPIOD
+
+#define USE_USART6
+#define USART6_RX_PIN Pin_7
+#define USART6_TX_PIN Pin_6
+#define USART6_GPIO GPIOC
+#define USART6_APB2_PERIPHERALS RCC_APB2Periph_USART6
+#define USART6_AHB1_PERIPHERALS RCC_AHB1Periph_GPIOC
 
 #define SERIAL_PORT_COUNT 4
 
@@ -98,6 +141,7 @@
 
 #define USE_SPI
 #define USE_SPI_DEVICE_1
+#define USE_SPI_DEVICE_2
 #define USE_SPI_DEVICE_3
 
 #define USE_I2C
