@@ -94,7 +94,7 @@ enum {
 /* IBat monitoring interval (in microseconds) - 6 default looptimes */
 #define IBATINTERVAL (6 * 3500)
 #define GYRO_WATCHDOG_DELAY 500  // Watchdog for boards without interrupt for gyro
-#define MOTORS_WRITE_TIME   490  // Motors write timing
+#define MOTORS_WRITE_TIME   400  // Motors write timing
 
 uint32_t currentTime = 0;
 uint32_t previousTime = 0;
