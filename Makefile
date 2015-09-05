@@ -636,7 +636,7 @@ REVO_SRC = startup_stm32f40xx.s \
 		   $(COMMON_SRC) \
 		   $(VCPF4_SRC)
 
-VRBRAIN_SRC = startup_stm32f40xx.s \
+#VRBRAIN_SRC = startup_stm32f40xx.s \
 		   drivers/accgyro_spi_mpu6000.c \
 		   drivers/barometer_ms5611.c \
 		   drivers/pitotmeter_ms4525.c \
@@ -649,6 +649,31 @@ VRBRAIN_SRC = startup_stm32f40xx.s \
 		   drivers/light_led_stm32f4xx.c \
 		   drivers/light_ws2811strip.c \
 		   drivers/light_ws2811strip_stm32f4xx.c \
+		   drivers/pwm_mapping.c \
+		   drivers/pwm_output.c \
+		   drivers/pwm_rx.c \
+		   drivers/serial_softserial.c \
+		   drivers/serial_escserial.c \
+		   drivers/serial_uart.c \
+		   drivers/serial_uart_stm32f4xx.c \
+		   drivers/sound_beeper_stm32f4xx.c \
+		   drivers/system_stm32f4xx.c \
+		   drivers/timer.c \
+		   drivers/timer_stm32f4xx.c \
+		   drivers/flash_m25p16.c \
+		   io/flashfs.c \
+		   $(HIGHEND_SRC) \
+		   $(COMMON_SRC) \
+		   $(VCPF4_SRC)
+
+VRBRAIN_SRC = startup_stm32f40xx.s \
+		   drivers/accgyro_spi_mpu6000.c \
+		   drivers/adc.c \
+		   drivers/adc_stm32f4xx.c \
+		   drivers/bus_i2c_stm32f4xx.c \
+		   drivers/bus_spi.c \
+		   drivers/gpio_stm32f4xx.c \
+		   drivers/light_led_stm32f4xx.c \
 		   drivers/pwm_mapping.c \
 		   drivers/pwm_output.c \
 		   drivers/pwm_rx.c \

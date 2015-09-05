@@ -267,7 +267,14 @@ void initSpi2(void)
     gpio.mode = Mode_AF_PP;
     gpioInit(GPIOC, &gpio);
     */
-    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
+
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOE, ENABLE);
+
+    //RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
 
     // SCK as output
     gpio.mode = Mode_AF_PP;
@@ -288,7 +295,7 @@ void initSpi2(void)
     gpioInit(GPIOB, &gpio);
 
     // NSS as gpio slave select
-    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOE, ENABLE);
+    //RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOE, ENABLE);
     gpio.pin = Pin_10;
     gpio.speed = Speed_50MHz;
     gpio.mode = Mode_Out_PP;
@@ -335,8 +342,8 @@ void initSpi2(void)
     SPI_Cmd(SPI2, ENABLE);
 
     // Drive NSS high to disable connected SPI device.
-    //GPIO_SetBits(SPI2_GPIO, SPI2_NSS_PIN);
-    GPIO_SetBits(GPIOE, SPI2_NSS_PIN);
+    //GPIO_SetBits(GPIOE, SPI2_NSS_PIN);
+    GPIOE->BSRRL = GPIO_Pin_10; // set PE10 high
 }
 #endif
 

@@ -169,8 +169,8 @@ bool mpu6000SpiDetect(void)
 #endif
 
     mpu6000WriteRegister(MPU6000_PWR_MGMT_1, BIT_H_RESET);
-
     return true;
+
     do {
         delay(150);
 
@@ -340,6 +340,8 @@ void mpu6000SpiGyroRead(int16_t *gyroData)
 
     mpu6000ReadRegister(MPU6000_GYRO_XOUT_H, buf, 6);
 
+    //delayMicroseconds(5);
+
     gyroData[X] = (int16_t)((buf[0] << 8) | buf[1]);
     gyroData[Y] = (int16_t)((buf[2] << 8) | buf[3]);
     gyroData[Z] = (int16_t)((buf[4] << 8) | buf[5]);
@@ -357,6 +359,8 @@ void mpu6000SpiAccRead(int16_t *gyroData)
 
     mpu6000ReadRegister(MPU6000_ACCEL_XOUT_H, buf, 6);
 
+    //delayMicroseconds(5);
+
     gyroData[X] = (int16_t)((buf[0] << 8) | buf[1]);
     gyroData[Y] = (int16_t)((buf[2] << 8) | buf[3]);
     gyroData[Z] = (int16_t)((buf[4] << 8) | buf[5]);
@@ -365,15 +369,9 @@ void mpu6000SpiAccRead(int16_t *gyroData)
 void checkMPU6000Interrupt(bool *gyroIsUpdated) {
 	uint8_t mpuIntStatus;
 
-#ifdef STM32F40_41xxx
-    spiSetDivisor(MPU6000_SPI_INSTANCE, SPI_21MHZ_CLOCK_DIVIDER);
-#else
-    spiSetDivisor(MPU6000_SPI_INSTANCE, SPI_18MHZ_CLOCK_DIVIDER);  // 18 MHz SPI clock
-#endif
+    mpu6000ReadRegister(MPU6000_INT_STATUS, &mpuIntStatus, 1);
 
-	mpu6000ReadRegister(MPU6000_INT_STATUS, &mpuIntStatus, 1);
-
-	//debug[0]=mpuIntStatus;
+    delayMicroseconds(5);
 
 	(mpuIntStatus) ? (*gyroIsUpdated=true) : (*gyroIsUpdated=false);
 }

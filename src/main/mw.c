@@ -81,6 +81,8 @@
 #include "config/config_profile.h"
 #include "config/config_master.h"
 
+#include "debug.h"
+
 // June 2013     V2.2-dev
 
 enum {
@@ -93,8 +95,9 @@ enum {
 #define VBATINTERVAL (6 * 3500)       
 /* IBat monitoring interval (in microseconds) - 6 default looptimes */
 #define IBATINTERVAL (6 * 3500)
-#define GYRO_WATCHDOG_DELAY 500  // Watchdog for boards without interrupt for gyro
-#define MOTORS_WRITE_TIME   400  // Motors write timing
+//#define GYRO_WATCHDOG_DELAY 500  // Watchdog for boards without interrupt for gyro
+#define GYRO_WATCHDOG_DELAY 0  // Watchdog for boards without interrupt for gyro
+#define MOTORS_WRITE_TIME   260  // Motors write timing
 
 uint32_t currentTime = 0;
 uint32_t previousTime = 0;
@@ -102,6 +105,13 @@ uint16_t cycleTime = 0;         // this is the number in micro second to achieve
 float dT;
 
 uint32_t motorsTime = 0;
+
+uint16_t maxCycleTime = 0;
+
+uint32_t imuTime1 = 0;
+uint32_t imuTime2 = 0;
+uint32_t maximuTime = 0;
+
 
 int16_t magHold;
 int16_t headFreeModeHold;
@@ -745,16 +755,16 @@ bool runLoop(uint32_t loopTime) {
 
     if (masterConfig.syncGyroToLoop) {
         if (ARMING_FLAG(ARMED)) {
-            if (gyroSyncCheckUpdate() || (int32_t)(currentTime - (loopTime + GYRO_WATCHDOG_DELAY)) >= 0) {
+            if (gyroSyncCheckUpdate() || (currentTime > (loopTime + GYRO_WATCHDOG_DELAY))) {
             	loopTrigger = true;
             }
         }
         // Blheli arming workaround (stable looptime prior to arming)
-        else if (!ARMING_FLAG(ARMED) && ((int32_t)(currentTime - loopTime) >= 0)) {
+        //else if (!ARMING_FLAG(ARMED) && ((int32_t)(currentTime - loopTime) >= 0)) {
+        else if (!ARMING_FLAG(ARMED) && (currentTime >= loopTime)) {
         	loopTrigger = true;
         }
     }
-
     else if ((int32_t)(currentTime - loopTime) >= 0){
     	loopTrigger = true;
     }
@@ -765,6 +775,7 @@ bool runLoop(uint32_t loopTime) {
 void loop(void)
 {
     static uint32_t loopTime;
+
 #if defined(BARO) || defined(SONAR)
     static bool haveProcessedAnnexCodeOnce = false;
 #endif
@@ -816,8 +827,20 @@ void loop(void)
 
         // Measure loop rate just after reading the sensors
         currentTime = micros();
-        cycleTime = (int32_t)(currentTime - previousTime);
+        //cycleTime = (int32_t)(currentTime - previousTime);
+        cycleTime = (uint16_t)(currentTime - previousTime);
         previousTime = currentTime;
+
+        if (ARMING_FLAG(ARMED)) {
+            if (cycleTime>maxCycleTime)
+            	maxCycleTime = cycleTime;
+			debug[0]=(int16_t)(maxCycleTime/10);
+			//debug[1]=(uint16_t)cycleTime;
+			if (maxCycleTime>64660){
+				debug[1]=1;
+				maxCycleTime=0;
+			}
+        }
 
         dT = (float)cycleTime * 0.000001f;
 
@@ -825,11 +848,20 @@ void loop(void)
             filterGyro();
         }
 
+        imuTime1 = micros();
         if (masterConfig.rcSmoothing) {
             filterRc();
         }
+        imuTime2 = micros();
+	    if (ARMING_FLAG(ARMED)) {
+			if ((imuTime2-imuTime1) > maximuTime)
+				maximuTime=(imuTime2-imuTime1);
+	    }
+	    debug[2]=(imuTime2-imuTime1);
+	    debug[3]=maximuTime;
 
         annexCode();
+
 #if defined(BARO) || defined(SONAR)
         haveProcessedAnnexCodeOnce = true;
 #endif

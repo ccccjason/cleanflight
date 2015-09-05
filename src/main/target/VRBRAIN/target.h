@@ -44,6 +44,7 @@
 #define USE_GYRO_SPI_MPU6000
 #define GYRO_SPI_MPU6000_ALIGN CW270_DEG
 
+/*
 #define MAG
 //#define USE_MAG_HMC5883
 #define HMC5883_BUS I2C_DEVICE_INT
@@ -56,17 +57,20 @@
 #define PITOT
 //#define USE_PITOT_MS4525
 #define MS4525_BUS I2C_DEVICE_EXT
+*/
 
 //#define INVERTER
 #define LED0
 #define LED1
 
+/*
 #define M25P16_CS_GPIO        GPIOE
 #define M25P16_CS_PIN         GPIO_Pin_15
 #define M25P16_SPI_INSTANCE   SPI3
 
 #define USE_FLASHFS
 #define USE_FLASH_M25P16
+*/
 
 #define USABLE_TIMER_CHANNEL_COUNT 12
 
@@ -101,16 +105,21 @@
 #define USE_SPI
 #define USE_SPI_DEVICE_1
 #define USE_SPI_DEVICE_2
-#define USE_SPI_DEVICE_3
+//#define USE_SPI_DEVICE_3
 
+/*
 #define USE_I2C
 #define I2C_DEVICE_INT (I2CDEV_1)
 #define I2C_DEVICE_EXT (I2CDEV_2)
+*/
 
-#define SENSORS_SET (SENSOR_ACC|SENSOR_BARO)
 
-#define LED_STRIP
-#define LED_STRIP_TIMER TIM5
+//#define SENSORS_SET (SENSOR_ACC|SENSOR_BARO)
+
+#define SENSORS_SET (SENSOR_ACC)
+
+//#define LED_STRIP
+//#define LED_STRIP_TIMER TIM5
 
 #define GPS
 #define BLACKBOX
