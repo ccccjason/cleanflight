@@ -47,7 +47,6 @@ static pwmOutputPort_t *motors[MAX_PWM_MOTORS];
 #ifdef USE_SERVOS
 static pwmOutputPort_t *servos[MAX_PWM_SERVOS];
 #endif
-#define PWM_BRUSHED_TIMER_MHZ 8
 
 static uint8_t allocatedOutputPortCount = 0;
 
@@ -165,14 +164,16 @@ void pwmCompleteOneshotMotorUpdate(uint8_t motorCount)
 
             timerForceOverflow(motors[index]->tim);
         }
-    }
-    for(index = 0; index < motorCount; index++){
-            // Set the compare register to 0, which stops the output pulsing if the timer overflows before the main loop completes again.
-            // This compare register will be set to the output value on the next main loop.
-            *motors[index]->ccr = 0;
 
+        // Set the compare register to 0, which stops the output pulsing if the timer overflows before the main loop completes again.
+        // This compare register will be set to the output value on the next main loop.
+        *motors[index]->ccr = 0;
     }
+}
 
+bool isMotorBrushed(uint16_t motorPwmRate)
+{
+    return (motorPwmRate > 500);
 }
 
 void pwmBrushedMotorConfig(const timerHardware_t *timerHardware, uint8_t motorIndex, uint16_t motorPwmRate, uint16_t idlePulse)

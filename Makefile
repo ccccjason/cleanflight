@@ -73,6 +73,7 @@ LINKER_DIR	 = $(ROOT)/src/main/target
 # Search path for sources
 VPATH		:= $(SRC_DIR):$(SRC_DIR)/startup
 USBFS_DIR	= $(ROOT)/lib/main/STM32_USB-FS-Device_Driver
+FATFS_DIR	= $(ROOT)/lib/main/fatfs
 USBPERIPH_SRC = $(notdir $(wildcard $(USBFS_DIR)/src/*.c))
 
 ifeq ($(TARGET),$(filter $(TARGET),STM32F3DISCOVERY CHEBUZZF3 NAZE32PRO SPRACINGF3 SPARKY ALIENWIIF3))
@@ -104,7 +105,7 @@ INCLUDE_DIRS := $(INCLUDE_DIRS) \
 		   $(USBFS_DIR)/inc \
 		   $(ROOT)/src/main/vcp
 
-VPATH := $(VPATH):$(USBFS_DIR)/src
+VPATH := $(VPATH):$(USBFS_DIR)/src:$(FATFS_DIR)
 
 DEVICE_STDPERIPH_SRC := $(DEVICE_STDPERIPH_SRC)\
 		   $(USBPERIPH_SRC) 
@@ -152,13 +153,15 @@ USBCDC_DIR	= $(ROOT)/lib/main/STM32_USB_Device_Library/Class/cdc
 USBCDC_SRC = $(notdir $(wildcard $(USBCDC_DIR)/src/*.c))
 EXCLUDES	= usbd_cdc_if_template.c
 USBCDC_SRC := $(filter-out ${EXCLUDES}, $(USBCDC_SRC))
+FATFS_SRC = $(notdir $(wildcard $(FATFS_DIR)/*.c))
 
-VPATH := $(VPATH):$(USBOTG_DIR)/src:$(USBCORE_DIR)/src:$(USBCDC_DIR)/src
+VPATH := $(VPATH):$(USBOTG_DIR)/src:$(USBCORE_DIR)/src:$(USBCDC_DIR)/src:$(FATFS_DIR)
 
 DEVICE_STDPERIPH_SRC := $(STDPERIPH_SRC) \
 		   $(USBOTG_SRC) \
 		   $(USBCORE_SRC) \
-		   $(USBCDC_SRC) 
+		   $(USBCDC_SRC) \
+		   $(FATFS_SRC)  
 
 VPATH		:= $(VPATH):$(CMSIS_DIR)/CM1/CoreSupport:$(CMSIS_DIR)/CM1/DeviceSupport/ST/STM32F4xx
 CMSIS_SRC	 = $(notdir $(wildcard $(CMSIS_DIR)/CM1/CoreSupport/*.c \
@@ -169,6 +172,7 @@ INCLUDE_DIRS := $(INCLUDE_DIRS) \
 		   $(USBOTG_DIR)/inc \
 		   $(USBCORE_DIR)/inc \
 		   $(USBCDC_DIR)/inc \
+		   $(FATFS_DIR) \
 		   $(CMSIS_DIR)/CM1/CoreSupport \
 		   $(CMSIS_DIR)/CM1/DeviceSupport/ST/STM32F4xx \
 		   $(ROOT)/src/main/vcpf4
@@ -351,7 +355,6 @@ HIGHEND_SRC  = flight/autotune.c \
 		   telemetry/smartport.c \
 		   sensors/sonar.c \
 		   sensors/barometer.c \
-		   sensors/pitotmeter.c \
 		   blackbox/blackbox.c \
 		   blackbox/blackbox_io.c
 
@@ -689,6 +692,7 @@ VRBRAIN_SRC = startup_stm32f40xx.s \
 		   io/flashfs.c \
 		   $(HIGHEND_SRC) \
 		   $(COMMON_SRC) \
+		   $(FATFS_SRC) \
 		   $(VCPF4_SRC)
 
 STM32F30x_COMMON_SRC	 = \

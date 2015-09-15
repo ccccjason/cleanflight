@@ -36,6 +36,7 @@
 #include "drivers/accgyro_l3gd20.h"
 #include "drivers/accgyro_lsm303dlhc.h"
 
+#include "drivers/bus_spi.h"
 #include "drivers/accgyro_spi_mpu6000.h"
 #include "drivers/accgyro_spi_mpu6500.h"
 #include "drivers/gyro_sync.h"
@@ -75,6 +76,7 @@ extern baro_t baro;
 extern acc_t acc;
 
 uint8_t detectedSensors[MAX_SENSORS_TO_DETECT] = { GYRO_NONE, ACC_NONE, BARO_NONE, MAG_NONE };
+
 
 const mpu6050Config_t *selectMPU6050Config(void)
 {
@@ -118,6 +120,19 @@ const mpu6050Config_t *selectMPU6050Config(void)
             .exti_irqn = EXTI15_10_IRQn
     };
     return &spRacingF3MPU6050Config;
+#endif
+
+#ifdef MOTOLAB
+    static const mpu6050Config_t MotolabF3MPU6050Config = {
+            .gpioAHBPeripherals = RCC_AHBPeriph_GPIOA,
+            .gpioPort = GPIOA,
+            .gpioPin = Pin_15,
+            .exti_port_source = EXTI_PortSourceGPIOA,
+            .exti_pin_source = EXTI_PinSource15,
+            .exti_line = EXTI_Line15,
+            .exti_irqn = EXTI15_10_IRQn
+    };
+    return &MotolabF3MPU6050Config;
 #endif
 
     return NULL;
@@ -227,6 +242,9 @@ bool detectGyro(uint16_t gyroLpf)
 
         case GYRO_SPI_MPU6500:
 #ifdef USE_GYRO_SPI_MPU6500
+#ifdef USE_HARDWARE_REVISION_DETECTION
+		  spiBusInit();
+#endif
 #ifdef NAZE
             if (hardwareRevision == NAZE32_SP && mpu6500SpiGyroDetect(&gyro, gyroLpf)) {
 #ifdef GYRO_SPI_MPU6500_ALIGN

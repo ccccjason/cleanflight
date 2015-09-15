@@ -45,7 +45,6 @@
 #include "sensors/compass.h"
 #include "sensors/acceleration.h"
 #include "sensors/barometer.h"
-#include "sensors/pitotmeter.h"
 #include "sensors/gyro.h"
 #include "sensors/battery.h"
 
@@ -95,9 +94,8 @@ enum {
 #define VBATINTERVAL (6 * 3500)       
 /* IBat monitoring interval (in microseconds) - 6 default looptimes */
 #define IBATINTERVAL (6 * 3500)
-//#define GYRO_WATCHDOG_DELAY 500  // Watchdog for boards without interrupt for gyro
-#define GYRO_WATCHDOG_DELAY 0  // Watchdog for boards without interrupt for gyro
-#define MOTORS_WRITE_TIME   260  // Motors write timing
+#define GYRO_WATCHDOG_DELAY 150  // Watchdog for boards without interrupt for gyro
+#define MOTORS_WRITE_TIME   400  // Motors write timing
 
 uint32_t currentTime = 0;
 uint32_t previousTime = 0;
@@ -107,11 +105,9 @@ float dT;
 uint32_t motorsTime = 0;
 
 uint16_t maxCycleTime = 0;
-
 uint32_t imuTime1 = 0;
 uint32_t imuTime2 = 0;
 uint32_t maximuTime = 0;
-
 
 int16_t magHold;
 int16_t headFreeModeHold;
@@ -360,6 +356,11 @@ void mwArm(void)
         if (ARMING_FLAG(ARMED)) {
             return;
         }
+        /*
+        if (IS_RC_MODE_ACTIVE(BOXFAILSAFE)) {
+            return;
+        }
+        */
         if (!ARMING_FLAG(PREVENT_ARMING)) {
             ENABLE_ARMING_FLAG(ARMED);
             headFreeModeHold = heading;
@@ -754,15 +755,8 @@ bool runLoop(uint32_t loopTime) {
 	bool loopTrigger = false;
 
     if (masterConfig.syncGyroToLoop) {
-        if (ARMING_FLAG(ARMED)) {
-            if (gyroSyncCheckUpdate() || (currentTime > (loopTime + GYRO_WATCHDOG_DELAY))) {
-            	loopTrigger = true;
-            }
-        }
-        // Blheli arming workaround (stable looptime prior to arming)
-        //else if (!ARMING_FLAG(ARMED) && ((int32_t)(currentTime - loopTime) >= 0)) {
-        else if (!ARMING_FLAG(ARMED) && (currentTime >= loopTime)) {
-        	loopTrigger = true;
+        if (gyroSyncCheckUpdate() || (int32_t)(currentTime - (loopTime + GYRO_WATCHDOG_DELAY)) >= 0) {
+            loopTrigger = true;
         }
     }
     else if ((int32_t)(currentTime - loopTime) >= 0){
@@ -775,7 +769,6 @@ bool runLoop(uint32_t loopTime) {
 void loop(void)
 {
     static uint32_t loopTime;
-
 #if defined(BARO) || defined(SONAR)
     static bool haveProcessedAnnexCodeOnce = false;
 #endif
@@ -827,41 +820,32 @@ void loop(void)
 
         // Measure loop rate just after reading the sensors
         currentTime = micros();
-        //cycleTime = (int32_t)(currentTime - previousTime);
-        cycleTime = (uint16_t)(currentTime - previousTime);
+        cycleTime = (int32_t)(currentTime - previousTime);
         previousTime = currentTime;
 
+        dT = (float)cycleTime * 0.000001f;
+
+        /*
         if (ARMING_FLAG(ARMED)) {
             if (cycleTime>maxCycleTime)
             	maxCycleTime = cycleTime;
 			debug[0]=(int16_t)(maxCycleTime/10);
-			//debug[1]=(uint16_t)cycleTime;
 			if (maxCycleTime>64660){
 				debug[1]=1;
 				maxCycleTime=0;
 			}
         }
-
-        dT = (float)cycleTime * 0.000001f;
+        */
 
         if (currentProfile->pidProfile.gyro_cut_hz) {
             filterGyro();
         }
 
-        imuTime1 = micros();
         if (masterConfig.rcSmoothing) {
             filterRc();
         }
-        imuTime2 = micros();
-	    if (ARMING_FLAG(ARMED)) {
-			if ((imuTime2-imuTime1) > maximuTime)
-				maximuTime=(imuTime2-imuTime1);
-	    }
-	    debug[2]=(imuTime2-imuTime1);
-	    debug[3]=maximuTime;
 
         annexCode();
-
 #if defined(BARO) || defined(SONAR)
         haveProcessedAnnexCodeOnce = true;
 #endif
@@ -928,24 +912,24 @@ void loop(void)
 #endif
 
 #ifdef VRBRAIN
-		//Motors max refresh rate to 2 Khz
+		//Motors refresh rate
 		if ((int32_t)(currentTime - motorsTime) >= 0) {
 			motorsTime = currentTime + MOTORS_WRITE_TIME;
 #endif
+
         if (motorControlEnable) {
             writeMotors();
         }
+
+#ifdef VRBRAIN
+		}
+#endif
 
 #ifdef BLACKBOX
         if (!cliMode && feature(FEATURE_BLACKBOX)) {
             handleBlackbox();
         }
 #endif
-
-#ifdef VRBRAIN
-		}
-#endif
-
     }
 
 #ifdef TELEMETRY

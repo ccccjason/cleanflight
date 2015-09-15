@@ -96,7 +96,7 @@ void useRcControlsConfig(modeActivationCondition_t *modeActivationConditions, es
     #endif
 
 	#ifdef STM32F40_41xxx
-    	#define FLASH_PAGE_SIZE                 ((uint32_t)0x20000)
+		#define FLASH_PAGE_SIZE                 ((uint32_t)0x20000)
 	#endif
 #endif
 
@@ -111,11 +111,11 @@ void useRcControlsConfig(modeActivationCondition_t *modeActivationConditions, es
 #endif
 
 #if defined(FLASH_SIZE)
-#ifdef STM32F40_41xxx
-    #define FLASH_PAGE_COUNT 8 // just to make calculations work
-#else
-	#define FLASH_PAGE_COUNT ((FLASH_SIZE * 0x400) / FLASH_PAGE_SIZE)
-#endif
+	#ifdef STM32F40_41xxx
+		#define FLASH_PAGE_COUNT 8 // just to make calculations work
+	#else
+		#define FLASH_PAGE_COUNT ((FLASH_SIZE * 0x400) / FLASH_PAGE_SIZE)
+	#endif
 #endif
 
 #if !defined(FLASH_PAGE_SIZE)
@@ -181,7 +181,7 @@ static void resetPidProfile(pidProfile_t *pidProfile)
     pidProfile->yaw_p_limit = YAW_P_LIMIT_MAX;
     pidProfile->gyro_cut_hz = 0;
     pidProfile->pterm_cut_hz = 40;
-    pidProfile->dterm_cut_hz = 10;
+    pidProfile->dterm_cut_hz = 8;
 
     pidProfile->P_f[ROLL] = 1.5f;     // new PID with preliminary defaults test carefully
     pidProfile->I_f[ROLL] = 0.4f;
@@ -189,7 +189,7 @@ static void resetPidProfile(pidProfile_t *pidProfile)
     pidProfile->P_f[PITCH] = 1.5f;
     pidProfile->I_f[PITCH] = 0.4f;
     pidProfile->D_f[PITCH] = 0.03f;
-    pidProfile->P_f[YAW] = 2.5f;
+    pidProfile->P_f[YAW] = 3.5f;
     pidProfile->I_f[YAW] = 1.0f;
     pidProfile->D_f[YAW] = 0.00f;
     pidProfile->A_level = 5.0f;
@@ -356,6 +356,11 @@ static void setControlRateProfile(uint8_t profileIndex)
     currentControlRateProfile = &masterConfig.controlRateProfiles[profileIndex];
 }
 
+uint16_t getCurrentMinthrottle(void)
+{
+    return masterConfig.escAndServoConfig.minthrottle;
+}
+
 // Default settings
 static void resetConf(void)
 {
@@ -369,7 +374,7 @@ static void resetConf(void)
     masterConfig.version = EEPROM_CONF_VERSION;
     masterConfig.mixerMode = MIXER_QUADX;
     featureClearAll();
-#if defined(CJMCU) || defined(SPARKY)
+#if defined(CJMCU) || defined(SPARKY) || defined(COLIBRI_RACE) || defined(MOTOLAB)
     featureSet(FEATURE_RX_PPM);
 #endif
 
@@ -414,11 +419,10 @@ static void resetConf(void)
     masterConfig.rxConfig.rx_min_usec = 885;          // any of first 4 channels below this value will trigger rx loss detection
     masterConfig.rxConfig.rx_max_usec = 2115;         // any of first 4 channels above this value will trigger rx loss detection
 
-    for (i = 0; i < MAX_AUX_CHANNEL_COUNT; i++) {
-        rxFailsafeChannelConfiguration_t *channelFailsafeConfiguration = &masterConfig.rxConfig.failsafe_aux_channel_configurations[i];
-
-        channelFailsafeConfiguration->mode = RX_FAILSAFE_MODE_HOLD;
-        channelFailsafeConfiguration->step = CHANNEL_VALUE_TO_RXFAIL_STEP(masterConfig.rxConfig.midrc);
+    for (i = 0; i < MAX_SUPPORTED_RC_CHANNEL_COUNT; i++) {
+        rxFailsafeChannelConfiguration_t *channelFailsafeConfiguration = &masterConfig.rxConfig.failsafe_channel_configurations[i];
+        channelFailsafeConfiguration->mode = (i < NON_AUX_CHANNEL_COUNT) ? RX_FAILSAFE_MODE_AUTO : RX_FAILSAFE_MODE_HOLD;
+        channelFailsafeConfiguration->step = (i == THROTTLE) ? masterConfig.rxConfig.rx_min_usec : CHANNEL_VALUE_TO_RXFAIL_STEP(masterConfig.rxConfig.midrc);
     }
 
     masterConfig.rxConfig.rssi_channel = 0;
@@ -495,6 +499,8 @@ static void resetConf(void)
     masterConfig.failsafeConfig.failsafe_delay = 10;              // 1sec
     masterConfig.failsafeConfig.failsafe_off_delay = 200;         // 20sec
     masterConfig.failsafeConfig.failsafe_throttle = 1000;         // default throttle off.
+    masterConfig.failsafeConfig.failsafe_kill_switch = 0;         // default failsafe switch action is identical to rc link loss
+    masterConfig.failsafeConfig.failsafe_throttle_low_delay = 100; // default throttle low delay for "just disarm" on failsafe condition
 
 #ifdef USE_SERVOS
     // servos
@@ -809,6 +815,11 @@ void validateAndFixConfig(void)
     }
 #endif
 
+#ifdef STM32F303xC
+    // hardware supports serial port inversion, make users life easier for those that want to connect SBus RX's
+    masterConfig.telemetryConfig.telemetry_inversion = 1;
+#endif
+
     /*
      * The retarded_arm setting is incompatible with pid_at_min_throttle because full roll causes the craft to roll over on the ground.
      * The pid_at_min_throttle implementation ignores yaw on the ground, but doesn't currently ignore roll when retarded_arm is enabled.
@@ -842,6 +853,8 @@ void readEEPROM(void)
     if (!isEEPROMContentValid())
         failureMode(10);
 
+    suspendRxSignal();
+
     // Read flash
     memcpy(&masterConfig, (char *) CONFIG_START_FLASH_ADDRESS, sizeof(master_t));
 
@@ -857,6 +870,8 @@ void readEEPROM(void)
 
     validateAndFixConfig();
     activateConfig();
+
+    resumeRxSignal();
 }
 
 void readEEPROMAndNotify(void)
@@ -874,6 +889,8 @@ void writeEEPROM(void)
     FLASH_Status status = 0;
     uint32_t wordOffset;
     int8_t attemptsRemaining = 3;
+
+    suspendRxSignal();
 
     // prepare checksum/version constants
     masterConfig.version = EEPROM_CONF_VERSION;
@@ -895,9 +912,9 @@ void writeEEPROM(void)
         for (wordOffset = 0; wordOffset < sizeof(master_t); wordOffset += 4) {
             if (wordOffset % FLASH_PAGE_SIZE == 0) {
 				#ifdef STM32F40_41xxx
-            		status = FLASH_EraseSector(FLASH_Sector_11, VoltageRange_3);
+					status = FLASH_EraseSector(FLASH_Sector_11, VoltageRange_3);
 				#else
-            		status = FLASH_ErasePage(CONFIG_START_FLASH_ADDRESS + wordOffset);
+					status = FLASH_ErasePage(CONFIG_START_FLASH_ADDRESS + wordOffset);
 				#endif
                 if (status != FLASH_COMPLETE) {
                     break;
@@ -920,6 +937,8 @@ void writeEEPROM(void)
     if (status != FLASH_COMPLETE || !isEEPROMContentValid()) {
         failureMode(10);
     }
+
+    resumeRxSignal();
 }
 
 void ensureEEPROMContainsValidData(void)
