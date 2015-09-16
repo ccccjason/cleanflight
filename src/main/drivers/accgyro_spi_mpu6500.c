@@ -31,6 +31,7 @@
 #include "sensor.h"
 #include "accgyro.h"
 #include "accgyro_spi_mpu6500.h"
+#include "gyro_sync.h"
 
 enum lpf_e {
     INV_FILTER_256HZ_NOLPF2 = 0,
@@ -72,9 +73,10 @@ enum accel_fsr_e {
 static uint8_t mpuLowPassFilter = INV_FILTER_42HZ;
 
 static void mpu6500AccInit(void);
-static void mpu6500AccRead(int16_t *accData);
+static bool mpu6500AccRead(int16_t *accData);
 static void mpu6500GyroInit(void);
-static void mpu6500GyroRead(int16_t *gyroADC);
+static bool mpu6500GyroRead(int16_t *gyroADC);
+static void checkMPU6500Interrupt(bool *gyroIsUpdated);
 
 extern uint16_t acc_1G;
 
@@ -94,11 +96,53 @@ static void mpu6500ReadRegister(uint8_t reg, uint8_t *data, int length)
     DISABLE_MPU6500;
 }
 
+static void mpu6500SpiInit(void)
+{
+    static bool hardwareInitialised = false;
+
+    if (hardwareInitialised) {
+        return;
+    }
+
+#ifdef STM32F303xC
+    RCC_AHBPeriphClockCmd(MPU6500_CS_GPIO_CLK_PERIPHERAL, ENABLE);
+
+    GPIO_InitTypeDef GPIO_InitStructure;
+    GPIO_InitStructure.GPIO_Pin = MPU6500_CS_PIN;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+
+    GPIO_Init(MPU6500_CS_GPIO, &GPIO_InitStructure);
+#endif
+
+#ifdef STM32F10X
+    RCC_APB2PeriphClockCmd(MPU6500_CS_GPIO_CLK_PERIPHERAL, ENABLE);
+
+    gpio_config_t gpio;
+    // CS as output
+    gpio.mode = Mode_Out_PP;
+    gpio.pin = MPU6500_CS_PIN;
+    gpio.speed = Speed_50MHz;
+    gpioInit(MPU6500_CS_GPIO, &gpio);
+#endif
+
+    GPIO_SetBits(MPU6500_CS_GPIO,   MPU6500_CS_PIN);
+
+    spiSetDivisor(MPU6500_SPI_INSTANCE, SPI_9MHZ_CLOCK_DIVIDER);
+
+    hardwareInitialised = true;
+}
+
 static bool mpu6500Detect(void)
 {
     uint8_t tmp;
 
+    mpu6500SpiInit();
+
     mpu6500ReadRegister(MPU6500_RA_WHOAMI, &tmp, 1);
+
     if (tmp != MPU6500_WHO_AM_I_CONST)
         return false;
 
@@ -125,6 +169,7 @@ bool mpu6500SpiGyroDetect(gyro_t *gyro, uint16_t lpf)
 
     gyro->init = mpu6500GyroInit;
     gyro->read = mpu6500GyroRead;
+    gyro->intStatus = checkMPU6500Interrupt;
 
     // 16.4 dps/lsb scalefactor
     gyro->scale = 1.0f / 16.4f;
@@ -152,7 +197,7 @@ static void mpu6500AccInit(void)
     acc_1G = 512 * 8;
 }
 
-static void mpu6500AccRead(int16_t *accData)
+static bool mpu6500AccRead(int16_t *accData)
 {
     uint8_t buf[6];
 
@@ -161,11 +206,12 @@ static void mpu6500AccRead(int16_t *accData)
     accData[X] = (int16_t)((buf[0] << 8) | buf[1]);
     accData[Y] = (int16_t)((buf[2] << 8) | buf[3]);
     accData[Z] = (int16_t)((buf[4] << 8) | buf[5]);
+
+    return true;
 }
 
 static void mpu6500GyroInit(void)
 {
-
 #ifdef NAZE
     gpio_config_t gpio;
     // MPU_INT output on rev5 hardware (PC13). rev4 was on PB13, conflicts with SPI devices
@@ -188,7 +234,7 @@ static void mpu6500GyroInit(void)
     mpu6500WriteRegister(MPU6500_RA_RATE_DIV, 0); // 1kHz S/R
 }
 
-static void mpu6500GyroRead(int16_t *gyroADC)
+static bool mpu6500GyroRead(int16_t *gyroADC)
 {
     uint8_t buf[6];
 
@@ -197,4 +243,16 @@ static void mpu6500GyroRead(int16_t *gyroADC)
     gyroADC[X] = (int16_t)((buf[0] << 8) | buf[1]);
     gyroADC[Y] = (int16_t)((buf[2] << 8) | buf[3]);
     gyroADC[Z] = (int16_t)((buf[4] << 8) | buf[5]);
+
+    return true;
+}
+
+void checkMPU6500Interrupt(bool *gyroIsUpdated) {
+	uint8_t mpuIntStatus;
+
+	mpu6500ReadRegister(MPU6500_INT_STATUS, &mpuIntStatus, 1);
+
+	delayMicroseconds(5);
+
+	(mpuIntStatus) ? (*gyroIsUpdated= true) : (*gyroIsUpdated= false);
 }

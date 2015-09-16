@@ -24,7 +24,6 @@ typedef struct hmc5883Config_s {
 #ifdef STM32F10X
     uint32_t gpioAPB2Peripherals;
 #endif
-    uint32_t gpioAHB1Peripherals;
     uint16_t gpioPin;
     GPIO_TypeDef *gpioPort;
 
@@ -36,4 +35,4 @@ typedef struct hmc5883Config_s {
 
 bool hmc5883lDetect(mag_t* mag, const hmc5883Config_t *hmc5883ConfigToUse);
 void hmc5883lInit(void);
-void hmc5883lRead(int16_t *magData);
+bool hmc5883lRead(int16_t *magData);

@@ -39,6 +39,8 @@
 #include "accgyro.h"
 #include "accgyro_spi_mpu6000.h"
 
+#include "gyro_sync.h"
+
 static bool mpuSpi6000InitDone = false;
 
 // Registers
@@ -125,8 +127,8 @@ static bool mpuSpi6000InitDone = false;
 #define DISABLE_MPU6000       GPIO_SetBits(MPU6000_CS_GPIO,   MPU6000_CS_PIN)
 #define ENABLE_MPU6000        GPIO_ResetBits(MPU6000_CS_GPIO, MPU6000_CS_PIN)
 
-void mpu6000SpiGyroRead(int16_t *gyroADC);
-void mpu6000SpiAccRead(int16_t *gyroADC);
+bool mpu6000SpiGyroRead(int16_t *gyroADC);
+bool mpu6000SpiAccRead(int16_t *gyroADC);
 void checkMPU6000Interrupt(bool *gyroIsUpdated);
 
 static void mpu6000WriteRegister(uint8_t reg, uint8_t data)
@@ -169,7 +171,6 @@ bool mpu6000SpiDetect(void)
 #endif
 
     mpu6000WriteRegister(MPU6000_PWR_MGMT_1, BIT_H_RESET);
-    return true;
 
     do {
         delay(150);
@@ -208,7 +209,7 @@ bool mpu6000SpiDetect(void)
     return false;
 }
 
-void mpu6000AccAndGyroInit() {
+void mpu6000AccAndGyroInit(void) {
 
     if (mpuSpi6000InitDone) {
         return;
@@ -308,6 +309,10 @@ bool mpu6000SpiGyroDetect(gyro_t *gyro, uint16_t lpf)
     spiSetDivisor(MPU6000_SPI_INSTANCE, SPI_0_5625MHZ_CLOCK_DIVIDER);
 #endif
 
+    // Determine the new sample divider
+    mpu6000WriteRegister(MPU6000_SMPLRT_DIV, gyroMPU6xxxGetDivider());
+    delayMicroseconds(1);
+
     // Accel and Gyro DLPF Setting
     mpu6000WriteRegister(MPU6000_CONFIG, mpuLowPassFilter);
     delayMicroseconds(1);
@@ -328,7 +333,7 @@ bool mpu6000SpiGyroDetect(gyro_t *gyro, uint16_t lpf)
     return true;
 }
 
-void mpu6000SpiGyroRead(int16_t *gyroData)
+bool mpu6000SpiGyroRead(int16_t *gyroData)
 {
     uint8_t buf[6];
 
@@ -340,14 +345,14 @@ void mpu6000SpiGyroRead(int16_t *gyroData)
 
     mpu6000ReadRegister(MPU6000_GYRO_XOUT_H, buf, 6);
 
-    //delayMicroseconds(5);
-
     gyroData[X] = (int16_t)((buf[0] << 8) | buf[1]);
     gyroData[Y] = (int16_t)((buf[2] << 8) | buf[3]);
     gyroData[Z] = (int16_t)((buf[4] << 8) | buf[5]);
+
+    return true;
 }
 
-void mpu6000SpiAccRead(int16_t *gyroData)
+bool mpu6000SpiAccRead(int16_t *gyroData)
 {
     uint8_t buf[6];
 
@@ -359,19 +364,19 @@ void mpu6000SpiAccRead(int16_t *gyroData)
 
     mpu6000ReadRegister(MPU6000_ACCEL_XOUT_H, buf, 6);
 
-    //delayMicroseconds(5);
-
     gyroData[X] = (int16_t)((buf[0] << 8) | buf[1]);
     gyroData[Y] = (int16_t)((buf[2] << 8) | buf[3]);
     gyroData[Z] = (int16_t)((buf[4] << 8) | buf[5]);
+
+    return true;
 }
 
 void checkMPU6000Interrupt(bool *gyroIsUpdated) {
 	uint8_t mpuIntStatus;
 
-    mpu6000ReadRegister(MPU6000_INT_STATUS, &mpuIntStatus, 1);
+	mpu6000ReadRegister(MPU6000_INT_STATUS, &mpuIntStatus, 1);
 
-    delayMicroseconds(5);
+	delayMicroseconds(5);
 
-	(mpuIntStatus) ? (*gyroIsUpdated=true) : (*gyroIsUpdated=false);
+	(mpuIntStatus) ? (*gyroIsUpdated= true) : (*gyroIsUpdated= false);
 }

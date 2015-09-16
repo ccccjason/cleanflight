@@ -1,4 +1,4 @@
-/*
+﻿/*
  * This file is part of Cleanflight.
  *
  * Cleanflight is free software: you can redistribute it and/or modify
@@ -34,6 +34,8 @@
 #include "sensor.h"
 #include "accgyro.h"
 #include "accgyro_mpu6050.h"
+
+#include "gyro_sync.h"
 
 //#define DEBUG_MPU_DATA_READY_INTERRUPT
 
@@ -138,19 +140,6 @@
 // RF = Register Flag
 #define MPU_RF_DATA_RDY_EN (1 << 0)
 
-#define MPU6050_SMPLRT_DIV      0       // 8000Hz
-
-enum lpf_e {
-    INV_FILTER_256HZ_NOLPF2 = 0,
-    INV_FILTER_188HZ,
-    INV_FILTER_98HZ,
-    INV_FILTER_42HZ,
-    INV_FILTER_20HZ,
-    INV_FILTER_10HZ,
-    INV_FILTER_5HZ,
-    INV_FILTER_2100HZ_NOLPF,
-    NUM_FILTER
-};
 enum gyro_fsr_e {
     INV_FSR_250DPS = 0,
     INV_FSR_500DPS,
@@ -173,9 +162,10 @@ enum accel_fsr_e {
 
 static uint8_t mpuLowPassFilter = INV_FILTER_42HZ;
 static void mpu6050AccInit(void);
-static void mpu6050AccRead(int16_t *accData);
+static bool mpu6050AccRead(int16_t *accData);
 static void mpu6050GyroInit(void);
-static void mpu6050GyroRead(int16_t *gyroADC);
+static bool mpu6050GyroRead(int16_t *gyroADC);
+static void checkMPU6050Interrupt(bool *gyroIsUpdated);
 
 typedef enum {
     MPU_6050_HALF_RESOLUTION,
@@ -296,7 +286,7 @@ static bool mpu6050Detect(void)
 
     delay(35);          // datasheet page 13 says 30ms. other stuff could have been running meanwhile. but we'll be safe
 
-    ack = i2cRead(MPU6050_ADDRESS, MPU_RA_WHO_AM_I, 1, &sig, MPU6050_BUS);
+    ack = i2cRead(MPU6050_ADDRESS, MPU_RA_WHO_AM_I, 1, &sig);
     if (!ack)
         return false;
 
@@ -327,7 +317,7 @@ bool mpu6050AccDetect(const mpu6050Config_t *configToUse, acc_t *acc)
     // See https://android.googlesource.com/kernel/msm.git/+/eaf36994a3992b8f918c18e4f7411e8b2320a35f/drivers/misc/mpu6050/mldl_cfg.c
 
     // determine product ID and accel revision
-    i2cRead(MPU6050_ADDRESS, MPU_RA_XA_OFFS_H, 6, readBuffer, MPU6050_BUS);
+    i2cRead(MPU6050_ADDRESS, MPU_RA_XA_OFFS_H, 6, readBuffer);
     revision = ((readBuffer[5] & 0x01) << 2) | ((readBuffer[3] & 0x01) << 1) | (readBuffer[1] & 0x01);
     if (revision) {
         /* Congrats, these parts are better. */
@@ -336,13 +326,13 @@ bool mpu6050AccDetect(const mpu6050Config_t *configToUse, acc_t *acc)
         } else if (revision == 2) {
             mpuAccelTrim = MPU_6050_FULL_RESOLUTION;
         } else {
-            failureMode(5);
+            failureMode(FAILURE_ACC_INCOMPATIBLE);
         }
     } else {
-        i2cRead(MPU6050_ADDRESS, MPU_RA_PRODUCT_ID, 1, &productId, MPU6050_BUS);
+        i2cRead(MPU6050_ADDRESS, MPU_RA_PRODUCT_ID, 1, &productId);
         revision = productId & 0x0F;
         if (!revision) {
-            failureMode(5);
+            failureMode(FAILURE_ACC_INCOMPATIBLE);
         } else if (revision == 4) {
             mpuAccelTrim = MPU_6050_HALF_RESOLUTION;
         } else {
@@ -368,6 +358,7 @@ bool mpu6050GyroDetect(const mpu6050Config_t *configToUse, gyro_t *gyro, uint16_
 
     gyro->init = mpu6050GyroInit;
     gyro->read = mpu6050GyroRead;
+    gyro->intStatus = checkMPU6050Interrupt;
 
     // 16.4 dps/lsb scalefactor
     gyro->scale = 1.0f / 16.4f;
@@ -406,52 +397,73 @@ static void mpu6050AccInit(void)
     }
 }
 
-static void mpu6050AccRead(int16_t *accData)
+static bool mpu6050AccRead(int16_t *accData)
 {
     uint8_t buf[6];
 
-    if (!i2cRead(MPU6050_ADDRESS, MPU_RA_ACCEL_XOUT_H, 6, buf, MPU6050_BUS)) {
-        return;
+    bool ack = i2cRead(MPU6050_ADDRESS, MPU_RA_ACCEL_XOUT_H, 6, buf);
+    if (!ack) {
+        return false;
     }
 
     accData[0] = (int16_t)((buf[0] << 8) | buf[1]);
     accData[1] = (int16_t)((buf[2] << 8) | buf[3]);
     accData[2] = (int16_t)((buf[4] << 8) | buf[5]);
+
+    return true;
 }
 
 static void mpu6050GyroInit(void)
 {
     mpu6050GpioInit();
 
-    i2cWrite(MPU6050_ADDRESS, MPU_RA_PWR_MGMT_1, 0x80, MPU6050_BUS);      //PWR_MGMT_1    -- DEVICE_RESET 1
+    bool ack;
+    ack = i2cWrite(MPU6050_ADDRESS, MPU_RA_PWR_MGMT_1, 0x80);      //PWR_MGMT_1    -- DEVICE_RESET 1
     delay(100);
-    i2cWrite(MPU6050_ADDRESS, MPU_RA_SMPLRT_DIV, 0x00, MPU6050_BUS); //SMPLRT_DIV    -- SMPLRT_DIV = 0  Sample Rate = Gyroscope Output Rate / (1 + SMPLRT_DIV)
-    i2cWrite(MPU6050_ADDRESS, MPU_RA_PWR_MGMT_1, 0x03, MPU6050_BUS); //PWR_MGMT_1    -- SLEEP 0; CYCLE 0; TEMP_DIS 0; CLKSEL 3 (PLL with Z Gyro reference)
+    ack = i2cWrite(MPU6050_ADDRESS, MPU_RA_PWR_MGMT_1, 0x03);      //PWR_MGMT_1    -- SLEEP 0; CYCLE 0; TEMP_DIS 0; CLKSEL 3 (PLL with Z Gyro reference)
+    delay(15); //PLL Settling time when changing CLKSEL is max 10ms.  Use 15ms to be sure
+    ack = i2cWrite(MPU6050_ADDRESS, MPU_RA_SMPLRT_DIV, gyroMPU6xxxGetDivider());  //SMPLRT_DIV    -- SMPLRT_DIV = 7  Sample Rate = Gyroscope Output Rate / (1 + SMPLRT_DIV)
     delay(15); //PLL Settling time when changing CLKSEL is max 10ms.  Use 15ms to be sure 
-    i2cWrite(MPU6050_ADDRESS, MPU_RA_CONFIG, mpuLowPassFilter, MPU6050_BUS); //CONFIG        -- EXT_SYNC_SET 0 (disable input pin for data sync) ; default DLPF_CFG = 0 => ACC bandwidth = 260Hz  GYRO bandwidth = 256Hz)
-    i2cWrite(MPU6050_ADDRESS, MPU_RA_GYRO_CONFIG, INV_FSR_2000DPS << 3, MPU6050_BUS);   //GYRO_CONFIG   -- FS_SEL = 3: Full scale set to 2000 deg/sec
+    ack = i2cWrite(MPU6050_ADDRESS, MPU_RA_CONFIG, mpuLowPassFilter); //CONFIG        -- EXT_SYNC_SET 0 (disable input pin for data sync) ; default DLPF_CFG = 0 => ACC bandwidth = 260Hz  GYRO bandwidth = 256Hz)
+    ack = i2cWrite(MPU6050_ADDRESS, MPU_RA_GYRO_CONFIG, INV_FSR_2000DPS << 3);   //GYRO_CONFIG   -- FS_SEL = 3: Full scale set to 2000 deg/sec
 
     // ACC Init stuff. Moved into gyro init because the reset above would screw up accel config. Oops.
     // Accel scale 8g (4096 LSB/g)
-    i2cWrite(MPU6050_ADDRESS, MPU_RA_ACCEL_CONFIG, INV_FSR_8G << 3, MPU6050_BUS);
+    ack = i2cWrite(MPU6050_ADDRESS, MPU_RA_ACCEL_CONFIG, INV_FSR_8G << 3);
 
-    i2cWrite(MPU6050_ADDRESS, MPU_RA_INT_PIN_CFG,
-            0 << 7 | 0 << 6 | 0 << 5 | 0 << 4 | 0 << 3 | 0 << 2 | 1 << 1 | 0 << 0, MPU6050_BUS); // INT_PIN_CFG   -- INT_LEVEL_HIGH, INT_OPEN_DIS, LATCH_INT_DIS, INT_RD_CLEAR_DIS, FSYNC_INT_LEVEL_HIGH, FSYNC_INT_DIS, I2C_BYPASS_EN, CLOCK_DIS
+//    ack = i2cWrite(MPU6050_ADDRESS, MPU_RA_INT_PIN_CFG,
+//            0 << 7 | 0 << 6 | 0 << 5 | 0 << 4 | 0 << 3 | 0 << 2 | 1 << 1 | 0 << 0); // INT_PIN_CFG   -- INT_LEVEL_HIGH, INT_OPEN_DIS, LATCH_INT_DIS, INT_RD_CLEAR_DIS, FSYNC_INT_LEVEL_HIGH, FSYNC_INT_DIS, I2C_BYPASS_EN, CLOCK_DIS
+    ack = i2cWrite(MPU6050_ADDRESS, MPU_RA_INT_PIN_CFG,
+            0 << 7 | 0 << 6 | 0 << 5 | 0 << 4 | 0 << 3 | 0 << 2 | 0 << 1 | 0 << 0); // INT_PIN_CFG   -- INT_LEVEL_HIGH, INT_OPEN_DIS, LATCH_INT_DIS, INT_RD_CLEAR_DIS, FSYNC_INT_LEVEL_HIGH, FSYNC_INT_DIS, I2C_BYPASS_EN, CLOCK_DIS
 
 #ifdef USE_MPU_DATA_READY_SIGNAL
-    i2cWrite(MPU6050_ADDRESS, MPU_RA_INT_ENABLE, MPU_RF_DATA_RDY_EN);
+    ack = i2cWrite(MPU6050_ADDRESS, MPU_RA_INT_ENABLE, MPU_RF_DATA_RDY_EN);
 #endif
+    UNUSED(ack);
 }
 
-static void mpu6050GyroRead(int16_t *gyroADC)
+static bool mpu6050GyroRead(int16_t *gyroADC)
 {
     uint8_t buf[6];
 
-    if (!i2cRead(MPU6050_ADDRESS, MPU_RA_GYRO_XOUT_H, 6, buf, MPU6050_BUS)) {
-        return;
+    bool ack = i2cRead(MPU6050_ADDRESS, MPU_RA_GYRO_XOUT_H, 6, buf);
+    if (!ack) {
+        return false;
     }
 
     gyroADC[0] = (int16_t)((buf[0] << 8) | buf[1]);
     gyroADC[1] = (int16_t)((buf[2] << 8) | buf[3]);
     gyroADC[2] = (int16_t)((buf[4] << 8) | buf[5]);
+
+    return true;
+}
+
+void checkMPU6050Interrupt(bool *gyroIsUpdated) {
+	uint8_t mpuIntStatus;
+
+	i2cRead(MPU6050_ADDRESS, MPU_RA_INT_STATUS, 1, &mpuIntStatus);
+
+	delayMicroseconds(5);
+
+	(mpuIntStatus) ? (*gyroIsUpdated= true) : (*gyroIsUpdated= false);
 }
