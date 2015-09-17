@@ -95,7 +95,7 @@ enum {
 /* IBat monitoring interval (in microseconds) - 6 default looptimes */
 #define IBATINTERVAL (6 * 3500)
 #define GYRO_WATCHDOG_DELAY 150  // Watchdog for boards without interrupt for gyro
-#define MOTORS_WRITE_TIME   400  // Motors write timing
+#define MOTORS_WRITE_TIME   260  // Motors write timing
 
 uint32_t currentTime = 0;
 uint32_t previousTime = 0;
@@ -751,6 +751,7 @@ void filterRc(void){
 }
 
 // Function for loop trigger
+/*
 bool runLoop(uint32_t loopTime) {
 	bool loopTrigger = false;
 
@@ -765,6 +766,45 @@ bool runLoop(uint32_t loopTime) {
 
     return loopTrigger;
 }
+*/
+
+// Function for loop trigger
+bool runLoop(uint32_t loopTime) {
+	bool loopTrigger = false;
+
+    if (masterConfig.syncGyroToLoop) {
+        if (ARMING_FLAG(ARMED)) {
+            if (gyroSyncCheckUpdate() || (int32_t)(currentTime - loopTime) >= 0) {
+            	loopTrigger = true;
+            }
+        }
+        // Blheli arming workaround (stable looptime prior to arming)
+		else if (!ARMING_FLAG(ARMED) && ((int32_t)(currentTime - loopTime) >= 0)) {
+        	loopTrigger = true;
+        }
+    }
+    else if ((int32_t)(currentTime - loopTime) >= 0){
+    	loopTrigger = true;
+    }
+
+    return loopTrigger;
+}
+
+/*
+bool runLoop(uint32_t loopTime) {
+	bool loopTrigger = false;
+
+    if (masterConfig.syncGyroToLoop) {
+        if (gyroSyncCheckUpdate() && (int32_t)(currentTime - loopTime) >= 0)
+            loopTrigger = true;
+    }
+    else if ((int32_t)(currentTime - loopTime) >= 0)
+    	loopTrigger = true;
+
+    return loopTrigger;
+}
+*/
+
 
 void loop(void)
 {
