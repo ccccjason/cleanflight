@@ -31,6 +31,7 @@
 #include "usb_init.h"
 #include "hw_config.h"
 #endif
+#include "common/utils.h"
 
 #include "drivers/system.h"
 
@@ -42,7 +43,7 @@
 
 static vcpPort_t vcpPort;
 
-void usbVcpSetBaudRate(serialPort_t *instance, uint32_t baudRate)
+static void usbVcpSetBaudRate(serialPort_t *instance, uint32_t baudRate)
 {
     UNUSED(instance);
     UNUSED(baudRate);
@@ -50,7 +51,7 @@ void usbVcpSetBaudRate(serialPort_t *instance, uint32_t baudRate)
     // TODO implement
 }
 
-void usbVcpSetMode(serialPort_t *instance, portMode_t mode)
+static void usbVcpSetMode(serialPort_t *instance, portMode_t mode)
 {
     UNUSED(instance);
     UNUSED(mode);
@@ -58,22 +59,23 @@ void usbVcpSetMode(serialPort_t *instance, portMode_t mode)
     // TODO implement
 }
 
-bool isUsbVcpTransmitBufferEmpty(serialPort_t *instance)
+static bool isUsbVcpTransmitBufferEmpty(serialPort_t *instance)
 {
     UNUSED(instance);
     return true;
 }
 
-uint8_t usbVcpAvailable(serialPort_t *instance)
+static uint8_t usbVcpAvailable(serialPort_t *instance)
 {
     UNUSED(instance);
+
     if(receiveLength>0xFF)
     	return 0xFF;
 
     return receiveLength & 0xFF; // FIXME use uint32_t return type everywhere
 }
 
-uint8_t usbVcpRead(serialPort_t *instance)
+static uint8_t usbVcpRead(serialPort_t *instance)
 {
     UNUSED(instance);
 
@@ -88,7 +90,29 @@ uint8_t usbVcpRead(serialPort_t *instance)
     return buf[0];
 }
 
-void usbVcpWrite(serialPort_t *instance, uint8_t c)
+static bool usbVcpFlush(vcpPort_t *port)
+{
+    uint8_t count = port->txAt;
+    port->txAt = 0;
+
+    if (count == 0) {
+        return true;
+    }
+    if (!usbIsConnected() || !usbIsConfigured()) {
+        return false;
+    }
+    
+    uint32_t txed;
+    uint32_t start = millis();
+
+    do {
+        txed = CDC_Send_DATA(port->txBuf, count);
+    } while (txed != count && (millis() - start < USB_TIMEOUT));
+
+    return txed == count;
+}
+
+static void usbVcpWrite(serialPort_t *instance, uint8_t c)
 {
     UNUSED(instance);
 
@@ -105,7 +129,31 @@ void usbVcpWrite(serialPort_t *instance, uint8_t c)
 
 }
 
-const struct serialPortVTable usbVTable[] = { { usbVcpWrite, usbVcpAvailable, usbVcpRead, usbVcpSetBaudRate, isUsbVcpTransmitBufferEmpty, usbVcpSetMode } };
+static void usbVcpBeginWrite(serialPort_t *instance)
+{
+    vcpPort_t *port = container_of(instance, vcpPort_t, port);
+    port->buffering = true;
+}
+
+static void usbVcpEndWrite(serialPort_t *instance)
+{
+    vcpPort_t *port = container_of(instance, vcpPort_t, port);
+    port->buffering = false;
+    usbVcpFlush(port);
+}
+
+static const struct serialPortVTable usbVTable[] = {
+    {
+        .serialWrite = usbVcpWrite,
+        .serialTotalBytesWaiting = usbVcpAvailable,
+        .serialRead = usbVcpRead,
+        .serialSetBaudRate = usbVcpSetBaudRate,
+        .isSerialTransmitBufferEmpty = isUsbVcpTransmitBufferEmpty,
+        .setMode = usbVcpSetMode,
+        .beginWrite = usbVcpBeginWrite,
+        .endWrite = usbVcpEndWrite,
+    }
+};
 
 serialPort_t *usbVcpOpen(void)
 {

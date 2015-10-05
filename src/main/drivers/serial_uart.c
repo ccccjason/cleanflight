@@ -191,10 +191,10 @@ serialPort_t *uartOpen(USART_TypeDef *USARTx, serialReceiveCallbackPtr callback,
         }
     }
 
-    // Transmit DMA or IRQ
-    if (mode & MODE_TX) {
+	// Transmit DMA or IRQ
+	if (mode & MODE_TX) {
 #ifdef STM32F40_41xxx
-        if (s->txDMAStream) {
+		if (s->txDMAStream) {
 			DMA_StructInit(&DMA_InitStructure);
 			DMA_InitStructure.DMA_PeripheralBaseAddr = s->txDMAPeripheralBaseAddr;
 			DMA_InitStructure.DMA_Priority = DMA_Priority_Medium;
@@ -207,7 +207,7 @@ serialPort_t *uartOpen(USART_TypeDef *USARTx, serialReceiveCallbackPtr callback,
 			DMA_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single ;
 			DMA_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
 #else
-        if (s->rxDMAChannel) {
+		if (s->rxDMAChannel) {
 			DMA_StructInit(&DMA_InitStructure);
 			DMA_InitStructure.DMA_PeripheralBaseAddr = s->rxDMAPeripheralBaseAddr;
 			DMA_InitStructure.DMA_Priority = DMA_Priority_Medium;
@@ -218,29 +218,29 @@ serialPort_t *uartOpen(USART_TypeDef *USARTx, serialReceiveCallbackPtr callback,
 			DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte;
 #endif
 
-            DMA_InitStructure.DMA_BufferSize = s->port.txBufferSize;
+			DMA_InitStructure.DMA_BufferSize = s->port.txBufferSize;
 #ifdef STM32F40_41xxx
-            DMA_InitStructure.DMA_Channel = s->txDMAChannel;
-            DMA_InitStructure.DMA_DIR = DMA_DIR_MemoryToPeripheral;
-            DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
-            DMA_DeInit(s->txDMAStream);
-            DMA_Init(s->txDMAStream, &DMA_InitStructure);
-            DMA_ITConfig(s->txDMAStream, DMA_IT_TC|DMA_IT_FE|DMA_IT_TE|DMA_IT_DME, ENABLE);
-            DMA_SetCurrDataCounter(s->txDMAStream, 0);
+			DMA_InitStructure.DMA_Channel = s->txDMAChannel;
+			DMA_InitStructure.DMA_DIR = DMA_DIR_MemoryToPeripheral;
+			DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
+			DMA_DeInit(s->txDMAStream);
+			DMA_Init(s->txDMAStream, &DMA_InitStructure);
+			DMA_ITConfig(s->txDMAStream, DMA_IT_TC|DMA_IT_FE|DMA_IT_TE|DMA_IT_DME, ENABLE);
+			DMA_SetCurrDataCounter(s->txDMAStream, 0);
 #else
-            DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralDST;
-            DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
-            DMA_DeInit(s->txDMAChannel);
-            DMA_Init(s->txDMAChannel, &DMA_InitStructure);
-            DMA_ITConfig(s->txDMAChannel, DMA_IT_TC, ENABLE);
-            DMA_SetCurrDataCounter(s->txDMAChannel, 0);
-            s->txDMAChannel->CNDTR = 0;
+			DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralDST;
+			DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
+			DMA_DeInit(s->txDMAChannel);
+			DMA_Init(s->txDMAChannel, &DMA_InitStructure);
+			DMA_ITConfig(s->txDMAChannel, DMA_IT_TC, ENABLE);
+			DMA_SetCurrDataCounter(s->txDMAChannel, 0);
+			s->txDMAChannel->CNDTR = 0;
 #endif
-            USART_DMACmd(s->USARTx, USART_DMAReq_Tx, ENABLE);
-        } else {
-            USART_ITConfig(s->USARTx, USART_IT_TXE, ENABLE);
-        }
-    }
+			USART_DMACmd(s->USARTx, USART_DMAReq_Tx, ENABLE);
+		} else {
+			USART_ITConfig(s->USARTx, USART_IT_TXE, ENABLE);
+		}
+	}
 
     USART_Cmd(s->USARTx, ENABLE);
 
@@ -375,6 +375,7 @@ void uartWrite(serialPort_t *instance, uint8_t ch)
     }
 }
 
+
 const struct serialPortVTable uartVTable[] = {
     {
         uartWrite,
@@ -383,5 +384,7 @@ const struct serialPortVTable uartVTable[] = {
         uartSetBaudRate,
         isUartTransmitBufferEmpty,
         uartSetMode,
+        .beginWrite = NULL,
+        .endWrite = NULL,
     }
 };

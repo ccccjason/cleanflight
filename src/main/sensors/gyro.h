@@ -30,7 +30,7 @@ typedef enum {
 } gyroSensor_e;
 
 #define GYRO_LPF 188
-#define GYRO_LPF 256
+//#define GYRO_LPF 256
 
 extern gyro_t gyro;
 extern sensor_align_e gyroAlign;

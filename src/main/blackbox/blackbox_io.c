@@ -22,6 +22,7 @@
 #include "drivers/accgyro.h"
 #include "drivers/light_led.h"
 #include "drivers/sound_beeper.h"
+#include "drivers/gyro_sync.h"
 
 #include "sensors/sensors.h"
 #include "sensors/boardalignment.h"
@@ -58,13 +59,6 @@
 #include "config/config_profile.h"
 #include "config/config_master.h"
 
-#include "tm_stm32f4_delay.h"
-#include "tm_stm32f4_fatfs.h"
-
-FATFS FatFs;                    /* Fatfs object         */
-FIL fil;                        /* File object          */
-uint32_t totalspace, freespace; /* Free and total space */
-
 #include "io/flashfs.h"
 
 #ifdef BLACKBOX
@@ -80,7 +74,6 @@ static portSharing_e blackboxPortSharing;
 
 void blackboxWrite(uint8_t value)
 {
-	/*
     switch (masterConfig.blackbox_device) {
 #ifdef USE_FLASHFS
         case BLACKBOX_DEVICE_FLASH:
@@ -92,26 +85,13 @@ void blackboxWrite(uint8_t value)
             serialWrite(blackboxPort, value);
         break;
     }
-    */
-	f_putc(value, &fil);
 }
 
-static void _putc(void *p, char c)
-{
-    (void)p;
-    //serialWrite(blackboxPort, c);
-    f_putc(c, &fil);
-}
-
-/*
 static void _putc(void *p, char c)
 {
     (void)p;
     blackboxWrite(c);
 }
-*/
-
-
 
 //printf() to the blackbox serial port with no blocking shenanigans (so it's caller's responsibility to not write too fast!)
 int blackboxPrintf(const char *fmt, ...)
@@ -123,22 +103,7 @@ int blackboxPrintf(const char *fmt, ...)
     return written;
 }
 
-
-
 // Print the null-terminated string 's' to the serial port and return the number of bytes written
-int blackboxPrint(const char *s)
-{
-    const char *pos = s;
-
-    while (*pos) {
-        //serialWrite(blackboxPort, *pos);
-    	f_putc(*pos, &fil);
-        pos++;
-    }
-    return pos - s;
-}
-
-/*
 int blackboxPrint(const char *s)
 {
     int length;
@@ -167,7 +132,6 @@ int blackboxPrint(const char *s)
 
     return length;
 }
-*/
 
 /**
  * Write an unsigned integer to the blackbox serial port using variable byte encoding.
@@ -480,7 +444,6 @@ void blackboxWriteFloat(float value)
  */
 bool blackboxDeviceFlush(void)
 {
-	/*
     switch (masterConfig.blackbox_device) {
         case BLACKBOX_DEVICE_SERIAL:
             //Nothing to speed up flushing on serial, as serial is continuously being drained out of its buffer
@@ -494,8 +457,6 @@ bool blackboxDeviceFlush(void)
         default:
             return false;
     }
-    */
-	return false;
 }
 
 /**
@@ -503,9 +464,6 @@ bool blackboxDeviceFlush(void)
  */
 bool blackboxDeviceOpen(void)
 {
-	uint32_t FileIndex;
-	char FileName[15];
-
     /*
      * We want to write at about 7200 bytes per second to give the OpenLog a good chance to save to disk. If
      * about looptime microseconds elapse between our writes, this is the budget of how many bytes we should
@@ -513,37 +471,8 @@ bool blackboxDeviceOpen(void)
      *
      * 9 / 1250 = 7200 / 1000000
      */
-    blackboxWriteChunkSize = MAX((masterConfig.looptime * 9) / 1250, 4);
+    blackboxWriteChunkSize = MAX((targetLooptime * 9) / 1250, 4);
 
-    if (f_mount(&FatFs, "0:", 1) == FR_OK) {
-		FileIndex=1;
-		while (FileIndex < 99999){
-			if (FileIndex<10)
-				tfp_sprintf(FileName, "0:LOG0000%d.TXT", FileIndex);
-			else if (FileIndex<100)
-				tfp_sprintf(FileName, "0:LOG000%d.TXT", FileIndex);
-			else if (FileIndex<1000)
-				tfp_sprintf(FileName, "0:LOG00%d.TXT", FileIndex);
-			else if (FileIndex<10000)
-				tfp_sprintf(FileName, "0:LOG0%d.TXT", FileIndex);
-			else
-				tfp_sprintf(FileName, "0:LOG%d.TXT", FileIndex);
-
-			if (f_open(&fil, FileName, FA_READ) != FR_OK){
-				if (f_open(&fil, FileName, FA_CREATE_ALWAYS | FA_READ | FA_WRITE) == FR_OK)
-					return true;
-				else
-					return false;
-			}
-			FileIndex++;
-		}
-		return false;
-	}
-	else
-		return false;
-
-
-    /*
     switch (masterConfig.blackbox_device) {
         case BLACKBOX_DEVICE_SERIAL:
             {
@@ -559,10 +488,10 @@ bool blackboxDeviceOpen(void)
                 baudRateIndex = portConfig->blackbox_baudrateIndex;
 
                 if (baudRates[baudRateIndex] == 230400) {
-                    //
-                    // OpenLog's 230400 baud rate is very inaccurate, so it requires a larger inter-character gap in
-                    // order to maintain synchronization.
-                    //
+                    /*
+                     * OpenLog's 230400 baud rate is very inaccurate, so it requires a larger inter-character gap in
+                     * order to maintain synchronization.
+                     */
                     portOptions |= SERIAL_STOPBITS_2;
                 } else {
                     portOptions |= SERIAL_STOPBITS_1;
@@ -586,7 +515,6 @@ bool blackboxDeviceOpen(void)
         default:
             return false;
     }
-    */
 }
 
 /**
@@ -594,19 +522,15 @@ bool blackboxDeviceOpen(void)
  */
 void blackboxDeviceClose(void)
 {
-	f_close(&fil);	     // Close logfile
-	f_mount(0, "0:", 1); // Unmount drive, don't forget this!
-
-	/*
     switch (masterConfig.blackbox_device) {
         case BLACKBOX_DEVICE_SERIAL:
             closeSerialPort(blackboxPort);
             blackboxPort = NULL;
 
-            //
-            // Normally this would be handled by mw.c, but since we take an unknown amount
-            // of time to shut down asynchronously, we're the only ones that know when to call it.
-            //
+            /*
+             * Normally this would be handled by mw.c, but since we take an unknown amount
+             * of time to shut down asynchronously, we're the only ones that know when to call it.
+             */
             if (blackboxPortSharing == PORTSHARING_SHARED) {
                 mspAllocateSerialPorts(&masterConfig.serialConfig);
             }
@@ -617,12 +541,10 @@ void blackboxDeviceClose(void)
             break;
 #endif
     }
-	*/
 }
 
 bool isBlackboxDeviceFull(void)
 {
-	/*
     switch (masterConfig.blackbox_device) {
         case BLACKBOX_DEVICE_SERIAL:
             return false;
@@ -635,8 +557,6 @@ bool isBlackboxDeviceFull(void)
         default:
             return false;
     }
-    */
-	return false;
 }
 
 #endif
