@@ -170,6 +170,7 @@ const mpu6000Config_t *selectMPU6000Config(void)
     return NULL;
 }
 
+
 #ifdef USE_FAKE_GYRO
 static void fakeGyroInit(void) {}
 static bool fakeGyroRead(int16_t *gyroADC) {

@@ -287,7 +287,6 @@ void mpu6000GpioInit(void) {
 
     mpu6000GpioInitDone = true;
 }
-//
 
 static void mpu6000WriteRegister(uint8_t reg, uint8_t data)
 {

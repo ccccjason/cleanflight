@@ -43,9 +43,7 @@
 // Format is manufacturer, memory type, then capacity
 #define JEDEC_ID_MICRON_M25P16         0x202015
 #define JEDEC_ID_MICRON_N25Q064        0x20BA17
-#define JEDEC_ID_MICRON_N25Q064        0x20BA17
 #define JEDEC_ID_WINBOND_W25Q64        0xEF4017
-#define JEDEC_ID_MACRONIX_MX25L3206E   0xC22016
 #define JEDEC_ID_MICRON_N25Q128        0x20ba18
 #define JEDEC_ID_WINBOND_W25Q128       0xEF4018
 
@@ -153,9 +151,9 @@ static bool m25p16_readIdentification()
 
     // Manufacturer, memory type, and capacity
     chipID = (in[1] << 16) | (in[2] << 8) | (in[3]);
-    chipID = JEDEC_ID_MACRONIX_MX25L3206E;
 
     // All supported chips use the same pagesize of 256 bytes
+
     switch (chipID) {
         case JEDEC_ID_MICRON_M25P16:
             geometry.sectors = 32;
@@ -164,10 +162,6 @@ static bool m25p16_readIdentification()
         case JEDEC_ID_MICRON_N25Q064:
         case JEDEC_ID_WINBOND_W25Q64:
             geometry.sectors = 128;
-            geometry.pagesPerSector = 256;
-        break;
-        case JEDEC_ID_MACRONIX_MX25L3206E:
-            geometry.sectors = 64;
             geometry.pagesPerSector = 256;
         break;
         case JEDEC_ID_MICRON_N25Q128:
@@ -202,11 +196,11 @@ static bool m25p16_readIdentification()
 bool m25p16_init()
 {
     //Maximum speed for standard READ command is 20mHz, other commands tolerate 25mHz
-//#ifdef STM32F40_41xxx
-//    spiSetDivisor(M25P16_SPI_INSTANCE, SPI_21MHZ_CLOCK_DIVIDER);
-//#else
-    spiSetDivisor(M25P16_SPI_INSTANCE, SPI_18MHZ_CLOCK_DIVIDER);
-//#endif
+	#ifdef STM32F40_41xxx
+	    spiSetDivisor(M25P16_SPI_INSTANCE, SPI_21MHZ_CLOCK_DIVIDER);
+	#else
+	    spiSetDivisor(M25P16_SPI_INSTANCE, SPI_18MHZ_CLOCK_DIVIDER);
+	#endif
 
     return m25p16_readIdentification();
 }

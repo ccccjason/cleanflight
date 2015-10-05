@@ -50,9 +50,6 @@ void gyroUpdateSampleRate(void) {
     gyroSamplePeriod = 1000; // gyro sampling rate 1khz
     minLooptime = 1000;      // Full 1khz sampling
 
-    //gyroSamplePeriod = 125; // gyro sampling rate 8khz
-    //minLooptime = 125;      // Full 8khz sampling
-
     // calculate gyro divider and targetLooptime (expected cycleTime)
     mpuDividerDrops  = (minLooptime + gyroSamplePeriod -1 ) / gyroSamplePeriod - 1;
     targetLooptime = (mpuDividerDrops + 1) * gyroSamplePeriod;
