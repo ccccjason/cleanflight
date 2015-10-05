@@ -44,6 +44,11 @@
 #define USE_GYRO_SPI_MPU6000
 #define GYRO_SPI_MPU6000_ALIGN CW270_DEG
 
+// MPU6000 interrupts
+#define USE_MPU_DATA_READY_SIGNAL
+//#define ENSURE_MPU_DATA_READY_IS_LOW
+
+
 /*
 #define MAG
 //#define USE_MAG_HMC5883
@@ -73,6 +78,8 @@
 */
 
 #define USABLE_TIMER_CHANNEL_COUNT 12
+
+#define EXTI15_10_CALLBACK_HANDLER_COUNT 1
 
 #define USE_VCP
 

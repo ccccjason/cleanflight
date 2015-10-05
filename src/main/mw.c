@@ -80,8 +80,6 @@
 #include "config/config_profile.h"
 #include "config/config_master.h"
 
-#include "debug.h"
-
 // June 2013     V2.2-dev
 
 enum {
@@ -94,7 +92,8 @@ enum {
 #define VBATINTERVAL (6 * 3500)       
 /* IBat monitoring interval (in microseconds) - 6 default looptimes */
 #define IBATINTERVAL (6 * 3500)
-#define GYRO_WATCHDOG_DELAY 150  // Watchdog for boards without interrupt for gyro
+#define GYRO_WATCHDOG_DELAY 100  // Watchdog for boards without interrupt for gyro
+#define PREVENT_RX_PROCESS_PRE_LOOP_TRIGGER 90 // Prevent RX processing before expected loop trigger
 #define MOTORS_WRITE_TIME   260  // Motors write timing
 
 uint32_t currentTime = 0;
@@ -103,11 +102,6 @@ uint16_t cycleTime = 0;         // this is the number in micro second to achieve
 float dT;
 
 uint32_t motorsTime = 0;
-
-uint16_t maxCycleTime = 0;
-uint32_t imuTime1 = 0;
-uint32_t imuTime2 = 0;
-uint32_t maximuTime = 0;
 
 int16_t magHold;
 int16_t headFreeModeHold;
@@ -356,11 +350,9 @@ void mwArm(void)
         if (ARMING_FLAG(ARMED)) {
             return;
         }
-        /*
         if (IS_RC_MODE_ACTIVE(BOXFAILSAFE)) {
             return;
         }
-        */
         if (!ARMING_FLAG(PREVENT_ARMING)) {
             ENABLE_ARMING_FLAG(ARMED);
             headFreeModeHold = heading;
@@ -700,21 +692,6 @@ void processRx(void)
 
 }
 
-// Gyro Low Pass
-void filterGyro(void) {
-    int axis;
-    static float dTGyro;
-    static filterStatePt1_t gyroADCState[XYZ_AXIS_COUNT];
-
-    if (!dTGyro) {
-        dTGyro = (float)targetLooptime * 0.000001f;
-    }
-
-    for (axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-        gyroADC[axis] = filterApplyPt1(gyroADC[axis], &gyroADCState[axis], currentProfile->pidProfile.gyro_cut_hz, dTGyro);
-    }
-}
-
 void filterRc(void){
     static int16_t lastCommand[4] = { 0, 0, 0, 0 };
     static int16_t deltaRC[4] = { 0, 0, 0, 0 };
@@ -750,72 +727,17 @@ void filterRc(void){
     }
 }
 
-// Function for loop trigger
-/*
-bool runLoop(uint32_t loopTime) {
-	bool loopTrigger = false;
-
-    if (masterConfig.syncGyroToLoop) {
-        if (gyroSyncCheckUpdate() || (int32_t)(currentTime - (loopTime + GYRO_WATCHDOG_DELAY)) >= 0) {
-            loopTrigger = true;
-        }
-    }
-    else if ((int32_t)(currentTime - loopTime) >= 0){
-    	loopTrigger = true;
-    }
-
-    return loopTrigger;
-}
-*/
-
-// Function for loop trigger
-bool runLoop(uint32_t loopTime) {
-	bool loopTrigger = false;
-
-    if (masterConfig.syncGyroToLoop) {
-        if (ARMING_FLAG(ARMED)) {
-            if (gyroSyncCheckUpdate() || (int32_t)(currentTime - loopTime) >= 0) {
-            	loopTrigger = true;
-            }
-        }
-        // Blheli arming workaround (stable looptime prior to arming)
-		else if (!ARMING_FLAG(ARMED) && ((int32_t)(currentTime - loopTime) >= 0)) {
-        	loopTrigger = true;
-        }
-    }
-    else if ((int32_t)(currentTime - loopTime) >= 0){
-    	loopTrigger = true;
-    }
-
-    return loopTrigger;
-}
-
-/*
-bool runLoop(uint32_t loopTime) {
-	bool loopTrigger = false;
-
-    if (masterConfig.syncGyroToLoop) {
-        if (gyroSyncCheckUpdate() && (int32_t)(currentTime - loopTime) >= 0)
-            loopTrigger = true;
-    }
-    else if ((int32_t)(currentTime - loopTime) >= 0)
-    	loopTrigger = true;
-
-    return loopTrigger;
-}
-*/
-
-
 void loop(void)
 {
     static uint32_t loopTime;
+
 #if defined(BARO) || defined(SONAR)
     static bool haveProcessedAnnexCodeOnce = false;
 #endif
 
     updateRx(currentTime);
 
-    if (shouldProcessRx(currentTime)) {
+	if (shouldProcessRx(currentTime) && !((int32_t)(currentTime - (loopTime - PREVENT_RX_PROCESS_PRE_LOOP_TRIGGER)) >= 0)) {
         processRx();
         isRXDataNew = true;
 
@@ -852,11 +774,11 @@ void loop(void)
     }
 
     currentTime = micros();
-    if (runLoop(loopTime)) {
+    if (gyroSyncCheckUpdate() || (int32_t)(currentTime - (loopTime + GYRO_WATCHDOG_DELAY)) >= 0) {
 
         loopTime = currentTime + targetLooptime;
-
         imuUpdate(&currentProfile->accelerometerTrims);
+
 
         // Measure loop rate just after reading the sensors
         currentTime = micros();
@@ -865,25 +787,9 @@ void loop(void)
 
         dT = (float)cycleTime * 0.000001f;
 
-        /*
-        if (ARMING_FLAG(ARMED)) {
-            if (cycleTime>maxCycleTime)
-            	maxCycleTime = cycleTime;
-			debug[0]=(int16_t)(maxCycleTime/10);
-			if (maxCycleTime>64660){
-				debug[1]=1;
-				maxCycleTime=0;
-			}
-        }
-        */
+        filterApply7TapFIR(gyroADC);
 
-        if (currentProfile->pidProfile.gyro_cut_hz) {
-            filterGyro();
-        }
-
-        if (masterConfig.rcSmoothing) {
-            filterRc();
-        }
+        filterRc();
 
         annexCode();
 #if defined(BARO) || defined(SONAR)
@@ -957,7 +863,7 @@ void loop(void)
 			motorsTime = currentTime + MOTORS_WRITE_TIME;
 #endif
 
-        if (motorControlEnable) {
+		if (motorControlEnable) {
             writeMotors();
         }
 

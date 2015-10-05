@@ -49,7 +49,6 @@
 #include "drivers/flash_m25p16.h"
 #include "drivers/sonar_hcsr04.h"
 
-
 #include "rx/rx.h"
 
 #include "io/serial.h"
@@ -105,7 +104,7 @@ void telemetryInit(void);
 void serialInit(serialConfig_t *initialSerialConfig, bool softserialEnabled);
 void mspInit(serialConfig_t *serialConfig);
 void cliInit(serialConfig_t *serialConfig);
-void failsafeInit(rxConfig_t *intialRxConfig);
+void failsafeInit(rxConfig_t *intialRxConfig, uint16_t deadband3d_throttle);
 pwmOutputConfiguration_t *pwmInit(drv_pwm_config_t *init);
 #ifdef USE_SERVOS
 void mixerInit(mixerMode_e mixerMode, motorMixer_t *customMotorMixers, servoMixer_t *customServoMixers);
@@ -116,13 +115,13 @@ void mixerUsePWMOutputConfiguration(pwmOutputConfiguration_t *pwmOutputConfigura
 void rxInit(rxConfig_t *rxConfig);
 void gpsInit(serialConfig_t *serialConfig, gpsConfig_t *initialGpsConfig);
 void navigationInit(gpsProfile_t *initialGpsProfile, pidProfile_t *pidProfile);
-void imuInit(void);
 void displayInit(rxConfig_t *intialRxConfig);
 void ledStripInit(ledConfig_t *ledConfigsToUse, hsvColor_t *colorsToUse);
 void loop(void);
 void spektrumBind(rxConfig_t *rxConfig);
 const sonarHardware_t *sonarGetHardwareConfiguration(batteryConfig_t *batteryConfig);
 void sonarInit(const sonarHardware_t *sonarHardware);
+void qimuInit(void);
 
 #ifdef STM32F303xC
 // from system_stm32f30x.c
@@ -177,7 +176,6 @@ void init(void)
 #ifdef STM32F40_41xxx
     SetSysClock();
 #endif
-
 
 #ifdef USE_HARDWARE_REVISION_DETECTION
     detectHardwareRevision();
@@ -394,9 +392,9 @@ void init(void)
     }
 #endif
 
-    if (!sensorsAutodetect(&masterConfig.sensorAlignmentConfig, masterConfig.gyro_lpf, masterConfig.acc_hardware, masterConfig.mag_hardware, masterConfig.baro_hardware, currentProfile->mag_declination, masterConfig.looptime, masterConfig.syncGyroToLoop)) {
+    if (!sensorsAutodetect(&masterConfig.sensorAlignmentConfig, masterConfig.acc_hardware, masterConfig.mag_hardware, masterConfig.baro_hardware, currentProfile->mag_declination)) {
         // if gyro was not detected due to whatever reason, we give up now.
-        failureMode(3);
+        failureMode(FAILURE_MISSING_ACC);
     }
 
     systemState |= SYSTEM_STATE_SENSORS_READY;
@@ -419,15 +417,14 @@ void init(void)
         compassInit();
 #endif
 
-    imuInit();
-
+    qimuInit();
     mspInit(&masterConfig.serialConfig);
 
 #ifdef USE_CLI
     cliInit(&masterConfig.serialConfig);
 #endif
 
-    failsafeInit(&masterConfig.rxConfig);
+    failsafeInit(&masterConfig.rxConfig, masterConfig.flight3DConfig.deadband3d_throttle);
 
     rxInit(&masterConfig.rxConfig);
 

@@ -29,82 +29,35 @@
 extern gyro_t gyro;
 
 uint32_t targetLooptime;
-static uint8_t mpuDivider;
+static uint8_t mpuDividerDrops;
 
-bool getMpuInterrupt(gyro_t *gyro)
+bool getMpuDataStatus(gyro_t *gyro)
 {
-    bool gyroIsUpdated;
+    bool mpuDataStatus;
 
-    gyro->intStatus(&gyroIsUpdated);
-    return gyroIsUpdated;
+    gyro->intStatus(&mpuDataStatus);
+    return mpuDataStatus;
 }
 
 bool gyroSyncCheckUpdate(void) {
-	return getMpuInterrupt(&gyro);
+    return getMpuDataStatus(&gyro);
 }
 
-void gyroUpdateSampleRate(uint32_t looptime, uint8_t lpf, uint8_t syncGyroToLoop) {
+void gyroUpdateSampleRate(void) {
     int gyroSamplePeriod;
     int minLooptime;
 
-    if (syncGyroToLoop) {
-#ifdef STM32F40_41xxx
-    if (lpf == INV_FILTER_256HZ_NOLPF2) {
-    	// Max refresh rate 8khz (Thanks Boris)
-        gyroSamplePeriod = 125;
-		minLooptime = 125;
-    }
-    else {
-        gyroSamplePeriod = 1000;
-        minLooptime = 1000;      // Full sampling
-    }
-#endif
-#ifdef STM32F303xC
-        if (lpf == INV_FILTER_256HZ_NOLPF2) {
-            gyroSamplePeriod = 125;
+    //gyroSamplePeriod = 1000; // gyro sampling rate 1khz
+    //minLooptime = 1000;      // Full 1khz sampling
 
-            if(!sensors(SENSOR_ACC)) {
-                minLooptime = 500;   // Max refresh 2khz
-            }
-            else {
-                minLooptime = 625;   // Max refresh 1,6khz
-            }
-        }
-        else {
-            gyroSamplePeriod = 1000;
-            minLooptime = 1000;      // Full sampling
-        }
-#elif STM32F10X
-        if (lpf == INV_FILTER_256HZ_NOLPF2) {
-            gyroSamplePeriod = 125;
+    gyroSamplePeriod = 125; // gyro sampling rate 8khz
+    minLooptime = 125;      // Full 8khz sampling
 
-            if(!sensors(SENSOR_ACC)) {
-                minLooptime = 625;   // Max refresh 1,33khz
-            }
-            else {
-                minLooptime = 1625;  // Max refresh 615hz
-            }
-        }
-        else {
-            gyroSamplePeriod = 1000;
-            if(!sensors(SENSOR_ACC)) {
-                minLooptime = 1000;  // Full sampling without ACC
-            }
-            else {
-                minLooptime = 2000;
-            }
-        }
-#endif
-        looptime = constrain(looptime, minLooptime, 4000);
-        mpuDivider  = (looptime + gyroSamplePeriod -1 ) / gyroSamplePeriod - 1;
-        targetLooptime = (mpuDivider + 1) * gyroSamplePeriod;
-    }
-    else {
-    	mpuDivider = 0;
-    	targetLooptime = looptime;
-    }
+    // calculate gyro divider and targetLooptime (expected cycleTime)
+    mpuDividerDrops  = (minLooptime + gyroSamplePeriod -1 ) / gyroSamplePeriod - 1;
+    targetLooptime = (mpuDividerDrops + 1) * gyroSamplePeriod;
 }
 
-uint8_t gyroMPU6xxxGetDivider(void) {
-    return mpuDivider;
+uint8_t gyroMPU6xxxGetDividerDrops(void) {
+    return mpuDividerDrops;
 }

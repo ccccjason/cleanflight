@@ -342,8 +342,8 @@ void initSpi2(void)
     SPI_Cmd(SPI2, ENABLE);
 
     // Drive NSS high to disable connected SPI device.
-    //GPIO_SetBits(GPIOE, SPI2_NSS_PIN);
-    GPIOE->BSRRL = GPIO_Pin_10; // set PE10 high
+    GPIO_SetBits(GPIOE, SPI2_NSS_PIN);
+    //GPIOE->BSRRL = GPIO_Pin_10; // set PE10 high
 }
 #endif
 

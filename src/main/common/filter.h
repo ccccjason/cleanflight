@@ -5,7 +5,7 @@
  *      Author: borisb
  */
 
-#define YAW_PTERM_CUT_RATIO 2
+#define YAW_PTERM_FILTER 30
 
 typedef struct filterStatePt1_s {
 	float state;
@@ -13,3 +13,5 @@ typedef struct filterStatePt1_s {
 } filterStatePt1_t;
 
 float filterApplyPt1(float input, filterStatePt1_t *filter, uint8_t f_cut, float dt);
+
+void filterApply7TapFIR(int16_t data[]);

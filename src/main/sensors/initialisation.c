@@ -122,7 +122,7 @@ const mpu6050Config_t *selectMPU6050Config(void)
     return &spRacingF3MPU6050Config;
 #endif
 
-#ifdef MOTOLAB
+#if defined(MOTOLAB) || defined(SPARKY)
     static const mpu6050Config_t MotolabF3MPU6050Config = {
             .gpioAHBPeripherals = RCC_AHBPeriph_GPIOA,
             .gpioPort = GPIOA,
@@ -133,6 +133,38 @@ const mpu6050Config_t *selectMPU6050Config(void)
             .exti_irqn = EXTI15_10_IRQn
     };
     return &MotolabF3MPU6050Config;
+#endif
+
+    return NULL;
+}
+
+
+const mpu6000Config_t *selectMPU6000Config(void)
+{
+#ifdef CC3D
+    static const mpu6000Config_t CC3DMPU6000Config = {
+            .gpioAPB2Peripherals = RCC_APB2Periph_GPIOA,
+            .gpioPort = GPIOA,
+            .gpioPin = Pin_3,
+            .exti_port_source = GPIO_PortSourceGPIOA,
+            .exti_pin_source = GPIO_PinSource3,
+            .exti_line = EXTI_Line3,
+            .exti_irqn = EXTI3_IRQn
+    };
+    return &CC3DMPU6000Config;
+#endif
+
+#ifdef VRBRAIN
+    static const mpu6000Config_t VRBRAINMPU6000Config = {
+            .gpioAHBPeripherals = RCC_AHB1Periph_GPIOD,
+            .gpioPort = GPIOD,
+            .gpioPin = Pin_10,
+            .exti_port_source = EXTI_PortSourceGPIOD,
+            .exti_pin_source = EXTI_PinSource10,
+            .exti_line = EXTI_Line10,
+            .exti_irqn = EXTI15_10_IRQn
+    };
+    return &VRBRAINMPU6000Config;
 #endif
 
     return NULL;
@@ -175,8 +207,9 @@ bool fakeAccDetect(acc_t *acc)
 }
 #endif
 
-bool detectGyro(uint16_t gyroLpf)
+bool detectGyro(void)
 {
+	uint16_t gyroLpf = GYRO_LPF;
     gyroSensor_e gyroHardware = GYRO_DEFAULT;
 
     gyroAlign = ALIGN_DEFAULT;
@@ -233,7 +266,7 @@ bool detectGyro(uint16_t gyroLpf)
 
         case GYRO_SPI_MPU6000:
 #ifdef USE_GYRO_SPI_MPU6000
-            if (mpu6000SpiGyroDetect(&gyro, gyroLpf)) {
+            if (mpu6000SpiGyroDetect(selectMPU6000Config(), &gyro, gyroLpf)) {
 #ifdef GYRO_SPI_MPU6000_ALIGN
                 gyroHardware = GYRO_SPI_MPU6000;
                 gyroAlign = GYRO_SPI_MPU6000_ALIGN;
@@ -372,7 +405,7 @@ retry:
             ; // fallthrough
         case ACC_SPI_MPU6000:
 #ifdef USE_ACC_SPI_MPU6000
-            if (mpu6000SpiAccDetect(&acc)) {
+            if (mpu6000SpiAccDetect(selectMPU6000Config(), &acc)) {
 #ifdef ACC_SPI_MPU6000_ALIGN
                 accAlign = ACC_SPI_MPU6000_ALIGN;
 #endif
@@ -613,14 +646,14 @@ void reconfigureAlignment(sensorAlignmentConfig_t *sensorAlignmentConfig)
     }
 }
 
-bool sensorsAutodetect(sensorAlignmentConfig_t *sensorAlignmentConfig, uint16_t gyroLpf, uint8_t accHardwareToUse, uint8_t magHardwareToUse, uint8_t baroHardwareToUse, int16_t magDeclinationFromConfig, uint32_t looptime, uint8_t syncGyroToLoop)
+bool sensorsAutodetect(sensorAlignmentConfig_t *sensorAlignmentConfig, uint8_t accHardwareToUse, uint8_t magHardwareToUse, uint8_t baroHardwareToUse, int16_t magDeclinationFromConfig)
 {
     int16_t deg, min;
 
     memset(&acc, 0, sizeof(acc));
     memset(&gyro, 0, sizeof(gyro));
 
-    if (!detectGyro(gyroLpf)) {
+    if (!detectGyro()) {
         return false;
     }
     detectAcc(accHardwareToUse);
@@ -631,7 +664,7 @@ bool sensorsAutodetect(sensorAlignmentConfig_t *sensorAlignmentConfig, uint16_t 
     if (sensors(SENSOR_ACC))
         acc.init();
     // this is safe because either mpu6050 or mpu3050 or lg3d20 sets it, and in case of fail, we never get here.
-    gyroUpdateSampleRate(looptime, gyroLpf, syncGyroToLoop);  // Set gyro refresh rate before initialisation
+    gyroUpdateSampleRate();  // Set gyro refresh rate before initialisation
     gyro.init();
 
     detectMag(magHardwareToUse);
