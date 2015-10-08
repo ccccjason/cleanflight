@@ -136,7 +136,7 @@ static uint32_t activeFeaturesLatch = 0;
 static uint8_t currentControlRateProfileIndex = 0;
 controlRateConfig_t *currentControlRateProfile;
 
-static const uint8_t EEPROM_CONF_VERSION = 105;
+static const uint8_t EEPROM_CONF_VERSION = 110;
 
 static void resetAccelerometerTrims(flightDynamicsTrims_t *accelerometerTrims)
 {
@@ -149,15 +149,15 @@ static void resetPidProfile(pidProfile_t *pidProfile)
 {
     pidProfile->pidController = 1;
 
-    pidProfile->P8[ROLL] = 40;
-    pidProfile->I8[ROLL] = 30;
-    pidProfile->D8[ROLL] = 23;
-    pidProfile->P8[PITCH] = 40;
-    pidProfile->I8[PITCH] = 30;
-    pidProfile->D8[PITCH] = 23;
-    pidProfile->P8[YAW] = 85;
+    pidProfile->P8[ROLL] = 39;
+    pidProfile->I8[ROLL] = 40;
+    pidProfile->D8[ROLL] = 29;
+    pidProfile->P8[PITCH] = 43;
+    pidProfile->I8[PITCH] = 46;
+    pidProfile->D8[PITCH] = 30;
+    pidProfile->P8[YAW] = 110;
     pidProfile->I8[YAW] = 45;
-    pidProfile->D8[YAW] = 0;
+    pidProfile->D8[YAW] = 3;
     pidProfile->P8[PIDALT] = 50;
     pidProfile->I8[PIDALT] = 0;
     pidProfile->D8[PIDALT] = 0;
@@ -181,7 +181,7 @@ static void resetPidProfile(pidProfile_t *pidProfile)
     pidProfile->yaw_p_limit = YAW_P_LIMIT_MAX;
     pidProfile->gyro_cut_hz = 60;
     pidProfile->pterm_cut_hz = 40;
-    pidProfile->dterm_cut_hz = 17;
+    pidProfile->dterm_cut_hz = 15;
 
     pidProfile->P_f[ROLL] = 1.5f;     // new PID with preliminary defaults test carefully
     pidProfile->I_f[ROLL] = 0.4f;
@@ -299,16 +299,16 @@ void resetSerialConfig(serialConfig_t *serialConfig)
 }
 
 static void resetControlRateConfig(controlRateConfig_t *controlRateConfig) {
-    controlRateConfig->rcRate8 = 90;
-    controlRateConfig->rcExpo8 = 65;
+    controlRateConfig->rcRate8 = 100;
+    controlRateConfig->rcExpo8 = 72;
     controlRateConfig->thrMid8 = 50;
     controlRateConfig->thrExpo8 = 0;
-    controlRateConfig->dynThrPID = 0;
-    controlRateConfig->rcYawExpo8 = 0;
+    controlRateConfig->dynThrPID = 50;
+    controlRateConfig->rcYawExpo8 = 20;
     controlRateConfig->tpa_breakpoint = 1500;
 
     for (uint8_t axis = 0; axis < FLIGHT_DYNAMICS_INDEX_COUNT; axis++) {
-        controlRateConfig->rates[axis] = 0;
+        controlRateConfig->rates[axis] = 40;
     }
 
 }
@@ -390,7 +390,7 @@ static void resetConf(void)
     masterConfig.current_profile_index = 0;     // default profile
     masterConfig.gyro_cmpf_factor = 600;        // default MWC
     masterConfig.gyro_cmpfm_factor = 250;       // default MWC
-    masterConfig.gyro_lpf = 256;                // supported by all gyro drivers now. In case of ST gyro, will default to 32Hz instead
+    masterConfig.gyro_lpf = 188;                // supported by all gyro drivers now. In case of ST gyro, will default to 32Hz instead
 
     resetAccelerometerTrims(&masterConfig.accZero);
 
