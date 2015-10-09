@@ -16,8 +16,6 @@
 
 #include "drivers/sensor.h"
 #include "drivers/accgyro.h"
-#include "drivers/accgyro_mpu6050.h"
-#include "drivers/accgyro_spi_mpu6000.h"
 #include "drivers/gyro_sync.h"
 
 #include "sensors/sensors.h"
@@ -46,6 +44,9 @@ bool gyroSyncCheckUpdate(void) {
 void gyroUpdateSampleRate(void) {
     int gyroSamplePeriod;
     int minLooptime;
+
+    //gyroSamplePeriod = 125;  // gyro sampling rate 8khz
+    //minLooptime = 125;;      // Full 8khz sampling
 
     gyroSamplePeriod = 1000; // gyro sampling rate 1khz
     minLooptime = 1000;      // Full 1khz sampling

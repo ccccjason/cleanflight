@@ -341,7 +341,7 @@ COMMON_SRC	 = build_config.c \
 		   $(CMSIS_SRC) \
 		   $(DEVICE_STDPERIPH_SRC)
 
-HIGHEND_SRC  = flight/autotune.c \
+HIGHEND_SRC  = flight/gtune.c \
 		   flight/navigation.c \
 		   flight/gps_conversion.c \
 		   common/colorconversion.c \
@@ -670,6 +670,7 @@ REVO_SRC = startup_stm32f40xx.s \
 		   $(VCPF4_SRC)
 
 VRBRAIN_SRC = startup_stm32f40xx.s \
+		   drivers/accgyro_mpu.c \
 		   drivers/accgyro_spi_mpu6000.c \
 		   drivers/adc.c \
 		   drivers/adc_stm32f4xx.c \

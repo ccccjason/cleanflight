@@ -73,7 +73,7 @@
 #include "flight/imu.h"
 #include "flight/altitudehold.h"
 #include "flight/failsafe.h"
-#include "flight/autotune.h"
+#include "flight/gtune.h"
 #include "flight/navigation.h"
 
 #include "config/runtime_config.h"
@@ -97,7 +97,7 @@ enum {
 #define IBATINTERVAL (6 * 3500)
 #define GYRO_WATCHDOG_DELAY 100  // Watchdog for boards without interrupt for gyro
 #define PREVENT_RX_PROCESS_PRE_LOOP_TRIGGER 80 // Prevent RX processing before expected loop trigger
-#define MOTORS_WRITE_TIME   260  // Motors write timing
+#define MOTORS_WRITE_TIME   510  // Motors write timing
 
 uint32_t currentTime = 0;
 uint32_t previousTime = 0;
@@ -131,40 +131,26 @@ void applyAndSaveAccelerometerTrimsDelta(rollAndPitchTrims_t *rollAndPitchTrimsD
     saveConfigAndNotify();
 }
 
-#ifdef AUTOTUNE
+#ifdef GTUNE
 
-void updateAutotuneState(void)
+void updateGtuneState(void)
 {
-    static bool landedAfterAutoTuning = false;
-    static bool autoTuneWasUsed = false;
+    static bool GTuneWasUsed = false;
 
-    if (IS_RC_MODE_ACTIVE(BOXAUTOTUNE)) {
-        if (!FLIGHT_MODE(AUTOTUNE_MODE)) {
-            if (ARMING_FLAG(ARMED)) {
-                if (isAutotuneIdle() || landedAfterAutoTuning) {
-                    autotuneReset();
-                    landedAfterAutoTuning = false;
-                }
-                autotuneBeginNextPhase(&currentProfile->pidProfile);
-                ENABLE_FLIGHT_MODE(AUTOTUNE_MODE);
-                autoTuneWasUsed = true;
-            } else {
-                if (havePidsBeenUpdatedByAutotune()) {
-                    saveConfigAndNotify();
-                    autotuneReset();
-                }
-            }
+    if (IS_RC_MODE_ACTIVE(BOXGTUNE)) {
+        if (!FLIGHT_MODE(GTUNE_MODE) && ARMING_FLAG(ARMED)) {
+            ENABLE_FLIGHT_MODE(GTUNE_MODE);
+            init_Gtune(&currentProfile->pidProfile);
+            GTuneWasUsed = true;
         }
-        return;
-    }
-
-    if (FLIGHT_MODE(AUTOTUNE_MODE)) {
-        autotuneEndPhase();
-        DISABLE_FLIGHT_MODE(AUTOTUNE_MODE);
-    }
-
-    if (!ARMING_FLAG(ARMED) && autoTuneWasUsed) {
-        landedAfterAutoTuning = true;
+        if (!FLIGHT_MODE(GTUNE_MODE) && !ARMING_FLAG(ARMED) && GTuneWasUsed) {
+            saveConfigAndNotify();
+            GTuneWasUsed = false;
+        }
+    } else {
+        if (FLIGHT_MODE(GTUNE_MODE) && ARMING_FLAG(ARMED)) {
+    	    DISABLE_FLIGHT_MODE(GTUNE_MODE);
+        }
     }
 }
 #endif
@@ -284,10 +270,6 @@ void annexCode(void)
         }
 
         if (!STATE(SMALL_ANGLE)) {
-            DISABLE_ARMING_FLAG(OK_TO_ARM);
-        }
-
-        if (IS_RC_MODE_ACTIVE(BOXAUTOTUNE)) {
             DISABLE_ARMING_FLAG(OK_TO_ARM);
         }
 
@@ -815,19 +797,23 @@ void loop(void)
 
         filterRc();
 
+        if (masterConfig.rxConfig.rcSmoothing) {
+            filterRc();
+        }
+
         annexCode();
 #if defined(BARO) || defined(SONAR)
         haveProcessedAnnexCodeOnce = true;
-#endif
-
-#ifdef AUTOTUNE
-        updateAutotuneState();
 #endif
 
 #ifdef MAG
         if (sensors(SENSOR_MAG)) {
         	updateMagHold();
         }
+#endif
+
+#ifdef GTUNE
+        updateGtuneState();
 #endif
 
 #if defined(BARO) || defined(SONAR)
@@ -886,8 +872,7 @@ void loop(void)
 		if ((int32_t)(currentTime - motorsTime) >= 0) {
 			motorsTime = currentTime + MOTORS_WRITE_TIME;
 #endif
-
-		if (motorControlEnable) {
+        if (motorControlEnable) {
             writeMotors();
         }
 
