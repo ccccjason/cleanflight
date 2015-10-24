@@ -27,8 +27,6 @@
 #include "drivers/bus_spi.h"
 #include "drivers/system.h"
 
-#include "debug.h"
-
 #define M25P16_INSTRUCTION_RDID             0x9F
 #define M25P16_INSTRUCTION_READ_BYTES       0x03
 #define M25P16_INSTRUCTION_READ_STATUS_REG  0x05
@@ -48,8 +46,6 @@
 #define JEDEC_ID_WINBOND_W25Q64        0xEF4017
 #define JEDEC_ID_MICRON_N25Q128        0x20ba18
 #define JEDEC_ID_WINBOND_W25Q128       0xEF4018
-#define FM25V01                        0xEF4019
-
 
 #define DISABLE_M25P16       GPIO_SetBits(M25P16_CS_GPIO,   M25P16_CS_PIN)
 #define ENABLE_M25P16        GPIO_ResetBits(M25P16_CS_GPIO, M25P16_CS_PIN)
@@ -155,21 +151,10 @@ static bool m25p16_readIdentification()
 
     // Manufacturer, memory type, and capacity
     chipID = (in[1] << 16) | (in[2] << 8) | (in[3]);
-    chipID = FM25V01;
-
-    /*
-    debug[2]=JEDEC_ID_MICRON_N25Q064;
-    debug[3]=chipID;
-    */
 
     // All supported chips use the same pagesize of 256 bytes
 
     switch (chipID) {
-		case FM25V01:
-			geometry.sectors = 1;
-			geometry.pagesPerSector = 1;
-			geometry.pageSize = FM25V01_PAGESIZE;
-		break;
         case JEDEC_ID_MICRON_M25P16:
             geometry.sectors = 32;
             geometry.pagesPerSector = 256;
@@ -211,11 +196,7 @@ static bool m25p16_readIdentification()
 bool m25p16_init()
 {
     //Maximum speed for standard READ command is 20mHz, other commands tolerate 25mHz
-	#ifdef STM32F40_41xxx
-	    spiSetDivisor(M25P16_SPI_INSTANCE, SPI_21MHZ_CLOCK_DIVIDER);
-	#else
-	    spiSetDivisor(M25P16_SPI_INSTANCE, SPI_18MHZ_CLOCK_DIVIDER);
-	#endif
+    spiSetDivisor(M25P16_SPI_INSTANCE, SPI_18MHZ_CLOCK_DIVIDER);
 
     return m25p16_readIdentification();
 }

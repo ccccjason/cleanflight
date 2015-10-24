@@ -69,9 +69,6 @@ static uint8_t usbVcpAvailable(serialPort_t *instance)
 {
     UNUSED(instance);
 
-    if(receiveLength>0xFF)
-    	return 0xFF;
-
     return receiveLength & 0xFF; // FIXME use uint32_t return type everywhere
 }
 
@@ -114,19 +111,12 @@ static bool usbVcpFlush(vcpPort_t *port)
 
 static void usbVcpWrite(serialPort_t *instance, uint8_t c)
 {
-    UNUSED(instance);
+    vcpPort_t *port = container_of(instance, vcpPort_t, port);
 
-    uint32_t txed;
-    uint32_t start = millis();
-
-    if (!(usbIsConnected() && usbIsConfigured())) {
-        return;
+    port->txBuf[port->txAt++] = c;
+    if (!port->buffering || port->txAt >= ARRAYLEN(port->txBuf)) {
+        usbVcpFlush(port);
     }
-
-    do {
-        txed = CDC_Send_DATA((uint8_t*)&c, 1);
-    } while (txed < 1 && (millis() - start < USB_TIMEOUT));
-
 }
 
 static void usbVcpBeginWrite(serialPort_t *instance)
@@ -142,18 +132,12 @@ static void usbVcpEndWrite(serialPort_t *instance)
     usbVcpFlush(port);
 }
 
-static const struct serialPortVTable usbVTable[] = {
-    {
-        .serialWrite = usbVcpWrite,
-        .serialTotalBytesWaiting = usbVcpAvailable,
-        .serialRead = usbVcpRead,
-        .serialSetBaudRate = usbVcpSetBaudRate,
-        .isSerialTransmitBufferEmpty = isUsbVcpTransmitBufferEmpty,
-        .setMode = usbVcpSetMode,
-        .beginWrite = usbVcpBeginWrite,
-        .endWrite = usbVcpEndWrite,
-    }
-};
+uint8_t usbTxBytesFree() {
+    // Because we block upon transmit and don't buffer bytes, our "buffer" capacity is effectively unlimited.
+    return 255;
+}
+
+const struct serialPortVTable usbVTable[] = { { usbVcpWrite, usbVcpAvailable, usbTxBytesFree, usbVcpRead, usbVcpSetBaudRate, isUsbVcpTransmitBufferEmpty, usbVcpSetMode } };
 
 serialPort_t *usbVcpOpen(void)
 {

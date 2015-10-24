@@ -79,8 +79,6 @@ static bool mpuSpi6000InitDone = false;
 #define BIT_GYRO                    3
 #define BIT_ACC                     2
 #define BIT_TEMP                    1
-#define BIT_INT_RD_CLEAR            0x10    // clear the interrupt when any read occurs
-#define BIT_LATCH_INT_EN            0x20    // latch data ready pin
 
 // Product ID Description for MPU6000
 // high 4 bits low 4 bits
@@ -124,6 +122,8 @@ bool mpu6000ReadRegister(uint8_t reg, uint8_t length, uint8_t *data)
 
 void mpu6000SpiGyroInit(uint16_t lpf)
 {
+    mpuIntExtiInit();
+
     uint8_t mpuLowPassFilter = determineMPULPF(lpf);
 
     mpu6000AccAndGyroInit();
@@ -154,6 +154,7 @@ void mpu6000SpiGyroInit(uint16_t lpf)
 void mpu6000SpiAccInit(void)
 {
     mpuIntExtiInit();
+
     acc_1G = 512 * 8;
 }
 
@@ -168,12 +169,12 @@ bool mpu6000SpiDetect(void)
     spiSetDivisor(MPU6000_SPI_INSTANCE, SPI_0_5625MHZ_CLOCK_DIVIDER);
 #endif
 
-    mpu6000WriteRegister(MPU6000_PWR_MGMT_1, BIT_H_RESET);
+    mpu6000WriteRegister(MPU_RA_PWR_MGMT_1, BIT_H_RESET);
 
     do {
         delay(150);
 
-        mpu6000ReadRegister(MPU6000_WHOAMI, 1, &in);
+        mpu6000ReadRegister(MPU_RA_WHO_AM_I, 1, &in);
         if (in == MPU6000_WHO_AM_I_CONST) {
             break;
         }
@@ -183,7 +184,7 @@ bool mpu6000SpiDetect(void)
     } while (attemptsRemaining--);
 
 
-    mpu6000ReadRegister(MPU6000_PRODUCT_ID, 1, &in);
+    mpu6000ReadRegister(MPU_RA_PRODUCT_ID, 1, &in);
 
     /* look for a product ID we recognise */
 
@@ -220,46 +221,44 @@ static void mpu6000AccAndGyroInit(void) {
 #endif
 
     // Device Reset
-    mpu6000WriteRegister(MPU6000_PWR_MGMT_1, BIT_H_RESET);
+    mpu6000WriteRegister(MPU_RA_PWR_MGMT_1, BIT_H_RESET);
     delay(150);
 
-    mpu6000WriteRegister(MPU6000_SIGNAL_PATH_RESET, BIT_GYRO | BIT_ACC | BIT_TEMP);
+    mpu6000WriteRegister(MPU_RA_SIGNAL_PATH_RESET, BIT_GYRO | BIT_ACC | BIT_TEMP);
     delay(150);
 
     // Clock Source PPL with Z axis gyro reference
-    mpu6000WriteRegister(MPU6000_PWR_MGMT_1, MPU_CLK_SEL_PLLGYROZ);
+    mpu6000WriteRegister(MPU_RA_PWR_MGMT_1, MPU_CLK_SEL_PLLGYROZ);
     delayMicroseconds(1);
 
     // Disable Primary I2C Interface
-    mpu6000WriteRegister(MPU6000_USER_CTRL, BIT_I2C_IF_DIS);
+    mpu6000WriteRegister(MPU_RA_USER_CTRL, BIT_I2C_IF_DIS);
     delayMicroseconds(1);
 
-    mpu6000WriteRegister(MPU6000_PWR_MGMT_2, 0x00);
+    mpu6000WriteRegister(MPU_RA_PWR_MGMT_2, 0x00);
     delayMicroseconds(1);
 
     // Accel Sample Rate 1kHz
     // Gyroscope Output Rate =  1kHz when the DLPF is enabled
-    mpu6000WriteRegister(MPU6000_SMPLRT_DIV, gyroMPU6xxxGetDividerDrops());
-    delayMicroseconds(1);
-
-    // Accel +/- 8 G Full Scale
-    mpu6000WriteRegister(MPU6000_ACCEL_CONFIG, BITS_FS_8G);
+    mpu6000WriteRegister(MPU_RA_SMPLRT_DIV, gyroMPU6xxxGetDividerDrops());
     delayMicroseconds(1);
 
     // Gyro +/- 1000 DPS Full Scale
-    mpu6000WriteRegister(MPU6000_GYRO_CONFIG, BITS_FS_2000DPS);
+    mpu6000WriteRegister(MPU_RA_GYRO_CONFIG, INV_FSR_2000DPS << 3);
     delayMicroseconds(1);
 
-    #ifdef USE_MPU_DATA_READY_SIGNAL
-        // Set MPU Data Ready Signal
-        mpu6000WriteRegister(MPU6000_INT_ENABLE , MPU_RF_DATA_RDY_EN);
-        delayMicroseconds(1);
-        // clear interrupt on any read, and hold the data ready pin high
+    // Accel +/- 8 G Full Scale
+    mpu6000WriteRegister(MPU_RA_ACCEL_CONFIG, INV_FSR_8G << 3);
+    delayMicroseconds(1);
 
-        // until we clear the interrupt
-        mpu6000WriteRegister(MPU6000_INT_PIN_CFG, BIT_INT_RD_CLEAR | BIT_LATCH_INT_EN);
-        delayMicroseconds(1);
-    #endif
+
+    mpu6000WriteRegister(MPU_RA_INT_PIN_CFG, 0 << 7 | 0 << 6 | 0 << 5 | 1 << 4 | 0 << 3 | 0 << 2 | 0 << 1 | 0 << 0);  // INT_ANYRD_2CLEAR
+    delayMicroseconds(1);
+
+#ifdef USE_MPU_DATA_READY_SIGNAL
+    mpu6000WriteRegister(MPU_RA_INT_ENABLE, MPU_RF_DATA_RDY_EN);
+    delayMicroseconds(1);
+#endif
 
 #ifdef STM32F40_41xxx
     spiSetDivisor(MPU6000_SPI_INSTANCE, SPI_21MHZ_CLOCK_DIVIDER);

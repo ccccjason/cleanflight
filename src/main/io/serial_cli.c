@@ -204,9 +204,10 @@ static const char * const sensorHardwareNames[4][11] = {
 
 typedef struct {
     const char *name;
+#ifndef SKIP_CLI_COMMAND_HELP
     const char *description;
     const char *args;
-
+#endif
     void (*func)(char *cmdline);
 } clicmd_t;
 
@@ -222,8 +223,6 @@ typedef struct {
 #define CLI_COMMAND_DEF(name, description, args, method) \
 { \
     name, \
-    NULL, \
-    NULL, \
     method \
 }
 #endif
@@ -332,7 +331,6 @@ const clivalue_t valueTable[] = {
     { "rssi_channel",               VAR_INT8   | MASTER_VALUE,  &masterConfig.rxConfig.rssi_channel, 0, MAX_SUPPORTED_RC_CHANNEL_COUNT },
     { "rssi_scale",                 VAR_UINT8  | MASTER_VALUE,  &masterConfig.rxConfig.rssi_scale, RSSI_SCALE_MIN, RSSI_SCALE_MAX },
     { "rssi_ppm_invert",            VAR_INT8   | MASTER_VALUE,  &masterConfig.rxConfig.rssi_ppm_invert, 0, 1 },
-    { "rc_smoothing",               VAR_INT8   | MASTER_VALUE,  &masterConfig.rxConfig.rcSmoothing, 0, 1 },
     { "input_filtering_mode",       VAR_INT8   | MASTER_VALUE,  &masterConfig.inputFilteringMode, 0, 1 },
 
     { "min_throttle",               VAR_UINT16 | MASTER_VALUE,  &masterConfig.escAndServoConfig.minthrottle, PWM_RANGE_ZERO, PWM_RANGE_MAX },
@@ -1711,12 +1709,14 @@ static void cliHelp(char *cmdline)
 
     for (i = 0; i < CMD_COUNT; i++) {
         cliPrint(cmdTable[i].name);
+#ifndef SKIP_CLI_COMMAND_HELP
         if (cmdTable[i].description) {
             printf(" - %s", cmdTable[i].description);
         }
         if (cmdTable[i].args) {
             printf("\r\n\t%s", cmdTable[i].args);
         }
+#endif
         cliPrint("\r\n");
     }
 }
@@ -2169,7 +2169,7 @@ static void cliVersion(char *cmdline)
 {
     UNUSED(cmdline);
 
-    printf("# BetaFlight v2/%s %s %s / %s (%s)",
+    printf("# BetaFlight Final/%s %s %s / %s (%s)",
         targetName,
         FC_VERSION_STRING,
         buildDate,
@@ -2184,7 +2184,7 @@ void cliProcess(void)
         return;
     }
 
-    while (serialTotalBytesWaiting(cliPort)) {
+    while (serialRxBytesWaiting(cliPort)) {
         uint8_t c = serialRead(cliPort);
         if (c == '\t' || c == '?') {
             // do tab completion

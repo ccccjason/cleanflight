@@ -27,6 +27,7 @@
 #include "common/axis.h"
 #include "common/color.h"
 #include "common/filter.h"
+#include "common/utils.h"
 
 #include "drivers/sensor.h"
 #include "drivers/accgyro.h"
@@ -245,14 +246,14 @@ void annexCode(void)
     }
 
     if (feature(FEATURE_VBAT)) {
-        if ((int32_t)(currentTime - vbatLastServiced) >= VBATINTERVAL) {
+        if (cmp32(currentTime, vbatLastServiced) >= VBATINTERVAL) {
             vbatLastServiced = currentTime;
             updateBattery();
         }
     }
 
     if (feature(FEATURE_CURRENT_METER)) {
-        int32_t ibatTimeSinceLastServiced = (int32_t) (currentTime - ibatLastServiced);
+        int32_t ibatTimeSinceLastServiced = cmp32(currentTime, ibatLastServiced);
 
         if (ibatTimeSinceLastServiced >= IBATINTERVAL) {
             ibatLastServiced = currentTime;
@@ -468,16 +469,14 @@ void executePeriodicTasks(void)
 
 #if defined(BARO) || defined(SONAR)
     case CALCULATE_ALTITUDE_TASK:
-
-#if defined(BARO) && !defined(SONAR)
-        if (sensors(SENSOR_BARO) && isBaroReady()) {
+        if (false
+#if defined(BARO)
+            || (sensors(SENSOR_BARO) && isBaroReady())
 #endif
-#if defined(BARO) && defined(SONAR)
-        if ((sensors(SENSOR_BARO) && isBaroReady()) || sensors(SENSOR_SONAR)) {
+#if defined(SONAR)
+            || sensors(SENSOR_SONAR)
 #endif
-#if !defined(BARO) && defined(SONAR)
-        if (sensors(SENSOR_SONAR)) {
-#endif
+            ) {
             calculateEstimatedAltitude(currentTime);
         }
         break;
@@ -797,10 +796,6 @@ void loop(void)
 
         filterRc();
 
-        if (masterConfig.rxConfig.rcSmoothing) {
-            filterRc();
-        }
-
         annexCode();
 #if defined(BARO) || defined(SONAR)
         haveProcessedAnnexCodeOnce = true;
@@ -875,7 +870,6 @@ void loop(void)
         if (motorControlEnable) {
             writeMotors();
         }
-
 #ifdef VRBRAIN
 		}
 #endif

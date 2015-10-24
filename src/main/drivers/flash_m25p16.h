@@ -21,7 +21,6 @@
 #include "flash.h"
 
 #define M25P16_PAGESIZE 256
-#define FM25V01_PAGESIZE 16384
 
 bool m25p16_init();
 

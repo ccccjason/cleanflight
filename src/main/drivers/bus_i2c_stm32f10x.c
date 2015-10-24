@@ -31,6 +31,8 @@
 
 #ifndef SOFT_I2C
 
+#define CLOCKSPEED 800000    // i2c clockspeed 400kHz default (conform specs), 800kHz  and  1200kHz (Betaflight default)
+
 // I2C2
 // SCL  PB10
 // SDA  PB11
@@ -42,7 +44,7 @@ static void i2c_er_handler(void);
 static void i2c_ev_handler(void);
 static void i2cUnstick(void);
 
-typedef struct i2cDevice_t {
+typedef struct i2cDevice_s {
     I2C_TypeDef *dev;
     GPIO_TypeDef *gpio;
     uint16_t scl;
@@ -104,7 +106,7 @@ static bool i2cHandleHardwareFailure(void)
     return false;
 }
 
-bool i2cWriteBuffer(uint8_t addr_, uint8_t reg_, uint8_t len_, uint8_t *data, I2CDevice bus)
+bool i2cWriteBuffer(uint8_t addr_, uint8_t reg_, uint8_t len_, uint8_t *data)
 {
     uint32_t timeout = I2C_DEFAULT_TIMEOUT;
 
@@ -141,12 +143,12 @@ bool i2cWriteBuffer(uint8_t addr_, uint8_t reg_, uint8_t len_, uint8_t *data, I2
     return !error;
 }
 
-bool i2cWrite(uint8_t addr_, uint8_t reg_, uint8_t data, I2CDevice bus)
+bool i2cWrite(uint8_t addr_, uint8_t reg_, uint8_t data)
 {
-    return i2cWriteBuffer(addr_, reg_, 1, &data, bus);
+    return i2cWriteBuffer(addr_, reg_, 1, &data);
 }
 
-bool i2cRead(uint8_t addr_, uint8_t reg_, uint8_t len, uint8_t* buf, I2CDevice bus)
+bool i2cRead(uint8_t addr_, uint8_t reg_, uint8_t len, uint8_t* buf)
 {
     uint32_t timeout = I2C_DEFAULT_TIMEOUT;
 
@@ -340,7 +342,15 @@ void i2cInit(I2CDevice index)
     i2c.I2C_Mode = I2C_Mode_I2C;
     i2c.I2C_DutyCycle = I2C_DutyCycle_2;
     i2c.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;
-    i2c.I2C_ClockSpeed = 400000;
+
+    // Overclocking i2c, test results
+    // Default speed, conform specs is 400000 (400 kHz)
+    // 2.0* :  800kHz - worked without errors
+    // 3.0* : 1200kHz - worked without errors
+    // 3.5* : 1400kHz - failed, hangup, bootpin recovery needed
+    // 4.0* : 1600kHz - failed, hangup, bootpin recovery needed
+    i2c.I2C_ClockSpeed = CLOCKSPEED;
+
     I2C_Cmd(I2Cx, ENABLE);
     I2C_Init(I2Cx, &i2c);
 
