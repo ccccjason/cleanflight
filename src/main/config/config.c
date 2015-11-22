@@ -92,6 +92,7 @@ void useRcControlsConfig(modeActivationCondition_t *modeActivationConditions, es
     #ifdef STM32F10X_HD
         #define FLASH_PAGE_SIZE                 ((uint16_t)0x800)
     #endif
+
 	#ifdef STM32F40_41xxx
 		#define FLASH_PAGE_SIZE                 ((uint32_t)0x20000)
 	#endif
@@ -139,7 +140,7 @@ static uint32_t activeFeaturesLatch = 0;
 static uint8_t currentControlRateProfileIndex = 0;
 controlRateConfig_t *currentControlRateProfile;
 
-static const uint8_t EEPROM_CONF_VERSION = 112;
+static const uint8_t EEPROM_CONF_VERSION = 113;
 
 static void resetAccelerometerTrims(flightDynamicsTrims_t *accelerometerTrims)
 {
@@ -173,8 +174,8 @@ static void resetPidProfile(pidProfile_t *pidProfile)
     pidProfile->P8[PIDNAVR] = 25; // NAV_P * 10;
     pidProfile->I8[PIDNAVR] = 33; // NAV_I * 100;
     pidProfile->D8[PIDNAVR] = 83; // NAV_D * 1000;
-    pidProfile->P8[PIDLEVEL] = 90;
-    pidProfile->I8[PIDLEVEL] = 10;
+    pidProfile->P8[PIDLEVEL] = 20;
+    pidProfile->I8[PIDLEVEL] = 20;
     pidProfile->D8[PIDLEVEL] = 100;
     pidProfile->P8[PIDMAG] = 40;
     pidProfile->P8[PIDVEL] = 120;
@@ -182,6 +183,7 @@ static void resetPidProfile(pidProfile_t *pidProfile)
     pidProfile->D8[PIDVEL] = 1;
 
     pidProfile->dterm_cut_hz = 40;
+    pidProfile->yaw_pterm_cut_hz = 50;
 
     pidProfile->P_f[ROLL] = 1.5f;     // new PID with preliminary defaults test carefully
     pidProfile->I_f[ROLL] = 0.4f;
@@ -189,9 +191,9 @@ static void resetPidProfile(pidProfile_t *pidProfile)
     pidProfile->P_f[PITCH] = 1.5f;
     pidProfile->I_f[PITCH] = 0.4f;
     pidProfile->D_f[PITCH] = 0.02f;
-    pidProfile->P_f[YAW] = 3.9f;
-    pidProfile->I_f[YAW] = 0.9f;
-    pidProfile->D_f[YAW] = 0.00f;
+    pidProfile->P_f[YAW] = 4.0f;
+    pidProfile->I_f[YAW] = 0.4f;
+    pidProfile->D_f[YAW] = 0.01f;
     pidProfile->A_level = 6.0f;
     pidProfile->H_level = 6.0f;
     pidProfile->H_sensitivity = 75;
@@ -398,11 +400,12 @@ static void resetConf(void)
 #endif
 
     featureSet(FEATURE_FAILSAFE);
+    featureSet(FEATURE_ONESHOT125);
 
     // global settings
     masterConfig.current_profile_index = 0;     // default profile
     masterConfig.dcm_kp = 10000;                // 1.0 * 10000
-    masterConfig.dcm_ki = 30;                   // 0.003 * 10000
+    masterConfig.dcm_ki = 0;                    // 0.003 * 10000
 
     resetAccelerometerTrims(&masterConfig.accZero);
 
@@ -412,12 +415,14 @@ static void resetConf(void)
     masterConfig.boardAlignment.pitchDegrees = 0;
     masterConfig.boardAlignment.yawDegrees = 0;
     masterConfig.acc_hardware = ACC_DEFAULT;     // default/autodetect
-    masterConfig.max_angle_inclination = 600;    // 50 degrees
+    masterConfig.max_angle_inclination = 700;    // 70 degrees
     masterConfig.yaw_control_direction = 1;
     masterConfig.gyroConfig.gyroMovementCalibrationThreshold = 32;
 
-    masterConfig.mag_hardware = 1;     // default/autodetect
-    masterConfig.baro_hardware = 1;   // default/autodetect
+    // xxx_hardware: 0:default/autodetect, 1: disable
+    masterConfig.mag_hardware = 0;
+
+    masterConfig.baro_hardware = 0;
 
     resetBatteryConfig(&masterConfig.batteryConfig);
 
@@ -838,6 +843,14 @@ void validateAndFixConfig(void)
 #if defined(CC3D) && defined(SONAR) && defined(USE_SOFTSERIAL1)
     if (feature(FEATURE_SONAR) && feature(FEATURE_SOFTSERIAL)) {
         featureClear(FEATURE_SONAR);
+    }
+#endif
+
+#if defined(COLIBRI_RACE)
+    masterConfig.serialConfig.portConfigs[0].functionMask = FUNCTION_MSP;
+    if(featureConfigured(FEATURE_RX_SERIAL)) {
+	    masterConfig.serialConfig.portConfigs[2].functionMask = FUNCTION_RX_SERIAL;
+	    masterConfig.rxConfig.serialrx_provider = SERIALRX_SBUS;
     }
 #endif
 

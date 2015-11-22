@@ -37,6 +37,7 @@
 #include "drivers/gpio.h"
 #include "drivers/system.h"
 #include "drivers/serial.h"
+#include "drivers/bus_bst.h"
 #include "drivers/timer.h"
 #include "drivers/pwm_rx.h"
 #include "drivers/gyro_sync.h"
@@ -59,6 +60,7 @@
 #include "io/gps.h"
 #include "io/ledstrip.h"
 #include "io/serial.h"
+#include "io/i2c_bst.h"
 #include "io/serial_cli.h"
 #include "io/serial_msp.h"
 #include "io/statusindicator.h"
@@ -96,8 +98,10 @@ enum {
 #define IBATINTERVAL (6 * 3500)
 #define GYRO_WATCHDOG_DELAY 100  // Watchdog for boards without interrupt for gyro
 #define PREVENT_RX_PROCESS_PRE_LOOP_TRIGGER 80 // Prevent RX processing before expected loop trigger
-#define MOTORS_WRITE_TIME   510  // Motors write timing
+#define PREVENT_BARO_READ_PRE_LOOP_TRIGGER 150 // Prevent BARO processing before expected loop trigger
 #define GYRO_RATE 0.001f  // Gyro refresh rate 1khz
+
+#define MOTORS_WRITE_TIME   510  // Motors write timing
 
 uint32_t currentTime = 0;
 uint32_t previousTime = 0;
@@ -482,7 +486,7 @@ typedef enum {
 #define PERIODIC_TASK_COUNT (UPDATE_DISPLAY_TASK + 1)
 
 
-void executePeriodicTasks(void)
+void executePeriodicTasks(bool skipBaroUpdate)
 {
     static int periodicTaskIndex = 0;
 
@@ -497,7 +501,7 @@ void executePeriodicTasks(void)
 
 #ifdef BARO
     case UPDATE_BARO_TASK:
-        if (sensors(SENSOR_BARO)) {
+        if (sensors(SENSOR_BARO) && !(skipBaroUpdate)) {
             baroUpdate(currentTime);
         }
         break;
@@ -541,6 +545,7 @@ void executePeriodicTasks(void)
 void processRx(void)
 {
     static bool armedBeeperOn = false;
+    static uint32_t pidResetErrorGyroTimeout = 0;
 
     calculateRxChannelsAndUpdateFailsafe(currentTime);
 
@@ -565,7 +570,19 @@ void processRx(void)
 
     if (throttleStatus == THROTTLE_LOW) {
         pidResetErrorAngle();
-        pidResetErrorGyro();
+        /*
+         * Additional code to prevent Iterm reset below min_check. pid_at_min_throttle higher than 1 will
+         * activate the feature. Experimental yet. Minimum configuration is 2 sec and maxx is 5seconds.
+         */
+        if (masterConfig.mixerConfig.pid_at_min_throttle > 1 && ARMING_FLAG(ARMED)) {
+            if (pidResetErrorGyroTimeout < millis()) {
+                pidResetErrorGyro();
+            }
+        } else {
+            pidResetErrorGyro();
+        }
+    } else {
+        pidResetErrorGyroTimeout = millis() + (masterConfig.mixerConfig.pid_at_min_throttle * 1000);
     }
 
     // When armed and motors aren't spinning, do beeps and then disarm
@@ -716,6 +733,7 @@ void loop(void)
 {
     static uint32_t loopTime;
     static bool haveProcessedRxOnceBeforeLoop = false;
+    bool skipBaroUpdate = false;
 
 #if defined(BARO) || defined(SONAR)
     static bool haveProcessedAnnexCodeOnce = false;
@@ -747,8 +765,12 @@ void loop(void)
 #endif
 
     } else {
+        if ((int32_t)(currentTime - (loopTime - PREVENT_BARO_READ_PRE_LOOP_TRIGGER)) >= 0) {
+            skipBaroUpdate = true;
+        }
+
         // not processing rx this iteration
-        executePeriodicTasks();
+        executePeriodicTasks(skipBaroUpdate);
 
         // if GPS feature is enabled, gpsThread() will be called at some intervals to check for stuck
         // hardware, wrong baud rates, init GPS if needed, etc. Don't use SENSOR_GPS here as gpsThread() can and will
@@ -851,12 +873,10 @@ void loop(void)
 		if ((int32_t)(currentTime - motorsTime) >= 0) {
 			motorsTime = currentTime + MOTORS_WRITE_TIME;
 #endif
+
         if (motorControlEnable) {
             writeMotors();
         }
-#ifdef VRBRAIN
-		}
-#endif
 
         // When no level modes active read acc after motor update
         if (!flightModeFlags) {
@@ -868,6 +888,11 @@ void loop(void)
             handleBlackbox();
         }
 #endif
+
+#ifdef VRBRAIN
+		}
+#endif
+
     }
 
 #ifdef TELEMETRY
@@ -875,6 +900,12 @@ void loop(void)
         telemetryProcess(&masterConfig.rxConfig, masterConfig.flight3DConfig.deadband3d_throttle);
     }
 #endif
+
+#ifdef USE_BST
+    bstProcess();
+    bstMasterWriteLoop();
+#endif
+
 
 #ifdef LED_STRIP
     if (feature(FEATURE_LED_STRIP)) {

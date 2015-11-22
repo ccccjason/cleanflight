@@ -149,7 +149,7 @@ static void cliFlashRead(char *cmdline);
 #endif
 #endif
 
-#ifdef USE_SERIAL_1WIRE
+#ifdef USE_SERIAL_1WIRE_CLI
 static void cliUSB1Wire(char *cmdline);
 #endif
 
@@ -234,7 +234,7 @@ typedef struct {
 
 // should be sorted a..z for bsearch()
 const clicmd_t cmdTable[] = {
-#ifdef USE_SERIAL_1WIRE
+#ifdef USE_SERIAL_1WIRE_CLI
     CLI_COMMAND_DEF("1wire", "1-wire interface to escs", "<esc index>", cliUSB1Wire),
 #endif
     CLI_COMMAND_DEF("adjrange", "configure adjustment ranges", NULL, cliAdjustmentRange),
@@ -416,8 +416,8 @@ const clivalue_t valueTable[] = {
     { "max_angle_inclination",      VAR_UINT16 | MASTER_VALUE,  &masterConfig.max_angle_inclination, 100, 1200 },
 
     { "moron_threshold",            VAR_UINT8  | MASTER_VALUE,  &masterConfig.gyroConfig.gyroMovementCalibrationThreshold, 0, 128 },
-    { "imu_dcm_kp",                 VAR_UINT16 | MASTER_VALUE,  &masterConfig.dcm_kp, 0, 20000 },
-    { "imu_dcm_ki",                 VAR_UINT16 | MASTER_VALUE,  &masterConfig.dcm_ki, 0, 20000 },
+    { "imu_dcm_kp",                 VAR_UINT16 | MASTER_VALUE,  &masterConfig.dcm_kp, 0, 50000 },
+    { "imu_dcm_ki",                 VAR_UINT16 | MASTER_VALUE,  &masterConfig.dcm_ki, 0, 50000 },
 
     { "alt_hold_deadband",          VAR_UINT8  | PROFILE_VALUE, &masterConfig.profile[0].rcControlsConfig.alt_hold_deadband, 1, 250 },
     { "alt_hold_fast_change",       VAR_UINT8  | PROFILE_VALUE, &masterConfig.profile[0].rcControlsConfig.alt_hold_fast_change, 0, 1 },
@@ -429,7 +429,7 @@ const clivalue_t valueTable[] = {
 
     { "yaw_control_direction",      VAR_INT8   | MASTER_VALUE,  &masterConfig.yaw_control_direction, -1, 1 },
 
-    { "pid_at_min_throttle",        VAR_UINT8  | MASTER_VALUE, &masterConfig.mixerConfig.pid_at_min_throttle, 0, 1 },
+    { "pid_at_min_throttle",        VAR_UINT8  | MASTER_VALUE, &masterConfig.mixerConfig.pid_at_min_throttle, 0, 5 },
     { "yaw_motor_direction",        VAR_INT8   | MASTER_VALUE, &masterConfig.mixerConfig.yaw_motor_direction, -1, 1 },
     { "yaw_jump_prevention_limit",  VAR_UINT16 | MASTER_VALUE, &masterConfig.mixerConfig.yaw_jump_prevention_limit, YAW_JUMP_PREVENTION_LIMIT_LOW, YAW_JUMP_PREVENTION_LIMIT_HIGH },
 #ifdef USE_SERVOS
@@ -520,6 +520,7 @@ const clivalue_t valueTable[] = {
     { "d_vel",                      VAR_UINT8  | PROFILE_VALUE, &masterConfig.profile[0].pidProfile.D8[PIDVEL], 0, 200 },
 
 	{ "dterm_cut_hz",               VAR_UINT8  | PROFILE_VALUE, &masterConfig.profile[0].pidProfile.dterm_cut_hz, 0, 200 },
+	{ "yaw_pterm_cut_hz",           VAR_UINT8  | PROFILE_VALUE, &masterConfig.profile[0].pidProfile.yaw_pterm_cut_hz, 0, 200 },
 
 #ifdef GTUNE
     { "gtune_loP_rll",              VAR_UINT8  | PROFILE_VALUE,  &masterConfig.profile[0].pidProfile.gtune_lolimP[FD_ROLL], 10, 200 },
@@ -1413,7 +1414,9 @@ static void dumpValues(uint16_t mask)
         printf("set %s = ", valueTable[i].name);
 
         if (strstr(valueTable[i].name, "pid_controller")) {
-            cliPrint(pidControllers[*(uint8_t *)valueTable[i].ptr -1]);
+            void *pidPtr= value->ptr;
+            pidPtr= ((uint8_t *)pidPtr) + (sizeof(profile_t) * masterConfig.current_profile_index);
+            cliPrint(pidControllers[*(uint8_t *)pidPtr-1]);
         } else {
             cliPrintVar(value, 0);
         }
@@ -2127,7 +2130,9 @@ static void cliGet(char *cmdline)
             printf("%s = ", valueTable[i].name);
 
         	if (strstr(valueTable[i].name, "pid_controller")) {
-                cliPrint(pidControllers[*(uint8_t *)valueTable[i].ptr - 1]);
+                void *pidPtr= val->ptr;
+                pidPtr= ((uint8_t *)pidPtr) + (sizeof(profile_t) * masterConfig.current_profile_index);
+                cliPrint(pidControllers[*(uint8_t *)pidPtr-1]);
         	} else {
                 cliPrintVar(val, 0);
         	}
@@ -2191,25 +2196,26 @@ static void cliStatus(char *cmdline)
     printf("Cycle Time: %d, I2C Errors: %d, config size: %d\r\n", cycleTime, i2cErrorCounter, sizeof(master_t));
 }
 
-#ifdef USE_SERIAL_1WIRE
+#ifdef USE_SERIAL_1WIRE_CLI
 static void cliUSB1Wire(char *cmdline)
 {
-    int i;
-
     if (isEmpty(cmdline)) {
         cliPrint("Please specify a ouput channel. e.g. `1wire 2` to connect to motor 2\r\n");
         return;
     } else {
+        usb1WireInitialize(); // init ESC outputs and get escCount value
+        int i;
         i = atoi(cmdline);
-        if (i >= 0 && i <= ESC_COUNT) {
+        if (i >= 0 && i <= escCount) {
             printf("Switching to BlHeli mode on motor port %d\r\n", i);
+            // motor 1 => index 0
+            usb1WirePassthrough(i-1);
         }
         else {
-            printf("Invalid motor port, valid range: 1 to %d\r\n", ESC_COUNT);
+            printf("Invalid motor port, valid range: 1 to %d\r\n", escCount);
+           // cliReboot();
         }
     }
-    // motor 1 => index 0
-    usb1WirePassthrough(i-1);
 }
 #endif
 
@@ -2217,7 +2223,7 @@ static void cliVersion(char *cmdline)
 {
     UNUSED(cmdline);
 
-    printf("# BetaFlight Final/%s %s %s / %s (%s)",
+    printf("# BetaFlight/%s %s %s / %s (%s)",
         targetName,
         FC_VERSION_STRING,
         buildDate,
