@@ -25,12 +25,11 @@
 #define LED1_PIN    Pin_15  // Red LEDs - PB4
 #define LED1_PERIPHERAL RCC_AHB1Periph_GPIOD
 
-/*
-#define INVERTER_PIN Pin_0 // PC0 used as inverter select GPIO
-#define INVERTER_GPIO GPIOC
-#define INVERTER_PERIPHERAL RCC_AHB1Periph_GPIOC
-#define INVERTER_USART USART1
-*/
+#define BEEP_GPIO   GPIOA
+#define BEEP_PIN    Pin_0
+#define BEEP_PERIPHERAL RCC_AHB1Periph_GPIOA
+//#define BEEPER_INVERTED
+
 
 #define MPU6000_CS_GPIO       GPIOE
 #define MPU6000_CS_PIN        GPIO_Pin_10
@@ -49,6 +48,7 @@
 #define USE_MPU_DATA_READY_SIGNAL
 //#define ENSURE_MPU_DATA_READY_IS_LOW
 
+#define EXTI15_10_CALLBACK_HANDLER_COUNT 1
 
 /*
 #define MAG
@@ -59,15 +59,13 @@
 #define BARO
 #define USE_BARO_MS5611
 #define MS5611_BUS I2C_DEVICE_INT
-
-#define PITOT
-//#define USE_PITOT_MS4525
-#define MS4525_BUS I2C_DEVICE_EXT
 */
 
 //#define INVERTER
 #define LED0
 #define LED1
+#define BEEPER
+
 
 #define M25P16_CS_GPIO        GPIOE
 #define M25P16_CS_PIN         GPIO_Pin_15
@@ -77,8 +75,6 @@
 #define USE_FLASH_M25P16
 
 #define USABLE_TIMER_CHANNEL_COUNT 12
-
-#define EXTI15_10_CALLBACK_HANDLER_COUNT 1
 
 #define USE_VCP
 
@@ -103,7 +99,15 @@
 #define USART6_APB2_PERIPHERALS RCC_APB2Periph_USART6
 #define USART6_AHB1_PERIPHERALS RCC_AHB1Periph_GPIOC
 
+/*
+#define INVERTER_PIN Pin_0 // PC0 used as inverter select GPIO
+#define INVERTER_GPIO GPIOC
+#define INVERTER_PERIPHERAL RCC_AHB1Periph_GPIOC
+#define INVERTER_USART USART1
+*/
+
 #define SERIAL_PORT_COUNT 4
+
 
 #define USE_ESCSERIAL
 #define ESCSERIAL_TIMER_TX_HARDWARE 0 // PWM 1
@@ -123,6 +127,28 @@
 //#define SENSORS_SET (SENSOR_ACC|SENSOR_BARO)
 
 #define SENSORS_SET (SENSOR_ACC)
+
+
+#define USE_ADC
+#define BOARD_HAS_VOLTAGE_DIVIDER
+
+
+#define ADC_INSTANCE                ADC2
+#define ADC_DMA_CHANNEL             DMA2_Channel1
+#define ADC_AHB_PERIPHERAL          RCC_AHBPeriph_DMA2
+
+#define VBAT_ADC_GPIO               GPIOC
+#define VBAT_ADC_GPIO_PIN           GPIO_Pin_0
+#define VBAT_ADC_CHANNEL            ADC_Channel_1
+
+#define CURRENT_METER_ADC_GPIO      GPIOA
+#define CURRENT_METER_ADC_GPIO_PIN  GPIO_Pin_5
+#define CURRENT_METER_ADC_CHANNEL   ADC_Channel_2
+
+#define RSSI_ADC_GPIO               GPIOB
+#define RSSI_ADC_GPIO_PIN           GPIO_Pin_2
+#define RSSI_ADC_CHANNEL            ADC_Channel_12
+
 
 //#define LED_STRIP
 //#define LED_STRIP_TIMER TIM5

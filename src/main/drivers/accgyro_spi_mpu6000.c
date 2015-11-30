@@ -59,7 +59,7 @@ static bool mpuSpi6000InitDone = false;
 #define BITS_FS_1000DPS             0x10
 #define BITS_FS_2000DPS             0x18
 #define BITS_FS_2G                  0x00
-#define BITS_FS_4G                  0x08
+#define BITS_FS_4G                  0x08f
 #define BITS_FS_8G                  0x10
 #define BITS_FS_16G                 0x18
 #define BITS_FS_MASK                0x18
@@ -95,6 +95,7 @@ static bool mpuSpi6000InitDone = false;
 #define MPU6000_REV_D8 0x58
 #define MPU6000_REV_D9 0x59
 #define MPU6000_REV_D10 0x5A
+#define MPU9250_REV_A01 0xEC
 
 #define DISABLE_MPU6000       GPIO_SetBits(MPU6000_CS_GPIO,   MPU6000_CS_PIN)
 #define ENABLE_MPU6000        GPIO_ResetBits(MPU6000_CS_GPIO, MPU6000_CS_PIN)
@@ -165,7 +166,7 @@ bool mpu6000SpiDetect(void)
         delay(150);
 
         mpu6000ReadRegister(MPU_RA_WHO_AM_I, 1, &in);
-        if (in == MPU6000_WHO_AM_I_CONST) {
+        if (in == MPU6000_WHO_AM_I_CONST || in == MPU9250_WHO_AM_I_CONST) {
             break;
         }
         if (!attemptsRemaining) {
@@ -177,7 +178,6 @@ bool mpu6000SpiDetect(void)
     mpu6000ReadRegister(MPU_RA_PRODUCT_ID, 1, &in);
 
     /* look for a product ID we recognise */
-
     // verify product revision
     switch (in) {
         case MPU6000ES_REV_C4:
@@ -192,6 +192,7 @@ bool mpu6000SpiDetect(void)
         case MPU6000_REV_D8:
         case MPU6000_REV_D9:
         case MPU6000_REV_D10:
+        case MPU9250_REV_A01:
             return true;
     }
 
