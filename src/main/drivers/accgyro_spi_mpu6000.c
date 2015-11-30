@@ -59,7 +59,7 @@ static bool mpuSpi6000InitDone = false;
 #define BITS_FS_1000DPS             0x10
 #define BITS_FS_2000DPS             0x18
 #define BITS_FS_2G                  0x00
-#define BITS_FS_4G                  0x08f
+#define BITS_FS_4G                  0x08
 #define BITS_FS_8G                  0x10
 #define BITS_FS_16G                 0x18
 #define BITS_FS_MASK                0x18
