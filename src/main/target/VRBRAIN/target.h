@@ -160,3 +160,4 @@
 #define AUTOTUNE
 #define USE_SERVOS
 #define USE_CLI
+//#define USE_SERIAL_1WIRE

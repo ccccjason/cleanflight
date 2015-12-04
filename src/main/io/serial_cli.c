@@ -51,7 +51,7 @@
 #include "io/gimbal.h"
 #include "io/rc_controls.h"
 #include "io/serial.h"
-#include "io/serial_1wire.h"
+
 #include "io/ledstrip.h"
 #include "io/flashfs.h"
 #include "io/beeper.h"
