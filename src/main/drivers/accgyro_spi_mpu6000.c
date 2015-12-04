@@ -225,7 +225,7 @@ static void mpu6000AccAndGyroInit(void) {
     delayMicroseconds(1);
 
     // Set Fchoice for the gyro to 11 by writing its inverse to bits 1:0 of GYRO_CONFIG
-    mpu6000WriteRegister(MPU_RA_CONFIG, 1 << 1 | 0 << 0);
+    mpu6000WriteRegister(MPU_RA_CONFIG, 1 << 1 | 1 << 0);
     //mpu6000WriteRegister(MPU_RA_GYRO_CONFIG, 0x00);
     delayMicroseconds(1);
 
@@ -237,7 +237,7 @@ static void mpu6000AccAndGyroInit(void) {
 
     // Gyro +/- 1000 DPS Full Scale
     //mpu6000WriteRegister(MPU_RA_GYRO_CONFIG, INV_FSR_2000DPS << 3);
-    mpu6000WriteRegister(MPU_RA_GYRO_CONFIG, INV_FSR_2000DPS << 3 | 0 << 1 | 1 << 0);
+    mpu6000WriteRegister(MPU_RA_GYRO_CONFIG, INV_FSR_2000DPS << 3 | 0 << 1 | 0 << 0);
     delayMicroseconds(1);
 
     // Accel +/- 8 G Full Scale
