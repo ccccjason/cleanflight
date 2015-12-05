@@ -330,7 +330,8 @@ void initSpi2(void)
     spi.SPI_CPHA = SPI_CPHA_2Edge;
     spi.SPI_NSS = SPI_NSS_Soft;
     //spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_8;
-    spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_4;
+    //spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_4;
+    spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_16;
     spi.SPI_FirstBit = SPI_FirstBit_MSB;
     spi.SPI_CRCPolynomial = 7;
 
