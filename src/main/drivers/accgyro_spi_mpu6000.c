@@ -42,6 +42,8 @@
 #include "accgyro_mpu.h"
 #include "accgyro_spi_mpu6000.h"
 
+#include "debug.h"
+
 static void mpu6000AccAndGyroInit(void);
 
 static bool mpuSpi6000InitDone = false;
@@ -130,11 +132,11 @@ void mpu6000SpiGyroInit(uint8_t lpf)
 
     spiResetErrorCounter(MPU6000_SPI_INSTANCE);
 
-    spiSetDivisor(MPU6000_SPI_INSTANCE, SPI_0_5625MHZ_CLOCK_DIVIDER);
+    //spiSetDivisor(MPU6000_SPI_INSTANCE, SPI_0_5625MHZ_CLOCK_DIVIDER);
 
     // Accel and Gyro DLPF Setting
-    mpu6000WriteRegister(MPU6000_CONFIG, lpf);
-    delayMicroseconds(1);
+    //mpu6000WriteRegister(MPU6000_CONFIG, lpf);
+    //delayMicroseconds(1);
 
     int16_t data[3];
     mpuGyroRead(data);
@@ -225,24 +227,24 @@ static void mpu6000AccAndGyroInit(void) {
     delayMicroseconds(1);
 
     // Set Fchoice for the gyro to 11 by writing its inverse to bits 1:0 of GYRO_CONFIG
-    mpu6000WriteRegister(MPU_RA_CONFIG, 1 << 1 | 1 << 0);
+    mpu6000WriteRegister(MPU_RA_CONFIG, 0 << 1 | 1 << 0);
     //mpu6000WriteRegister(MPU_RA_GYRO_CONFIG, 0x00);
     delayMicroseconds(1);
 
     // Accel Sample Rate 1kHz
     // Gyroscope Output Rate =  1kHz when the DLPF is enabled
-    mpu6000WriteRegister(MPU_RA_SMPLRT_DIV, gyroMPU6xxxGetDividerDrops());
+    //mpu6000WriteRegister(MPU_RA_SMPLRT_DIV, gyroMPU6xxxGetDividerDrops());
     //mpu6000WriteRegister(MPU_RA_SMPLRT_DIV, 0);
-    delayMicroseconds(1);
+    //delayMicroseconds(1);
 
     // Gyro +/- 1000 DPS Full Scale
     //mpu6000WriteRegister(MPU_RA_GYRO_CONFIG, INV_FSR_2000DPS << 3);
-    mpu6000WriteRegister(MPU_RA_GYRO_CONFIG, INV_FSR_2000DPS << 3 | 0 << 1 | 0 << 0);
+    mpu6000WriteRegister(MPU_RA_GYRO_CONFIG, INV_FSR_2000DPS << 3 | 1 << 1 | 0 << 0);
     delayMicroseconds(1);
 
     // Accel +/- 8 G Full Scale
     //mpu6000WriteRegister(MPU_RA_ACCEL_CONFIG, INV_FSR_8G << 3);
-    mpu6000WriteRegister(MPU_RA_ACCEL_CONFIG, INV_FSR_8G << 3 | 0 << 0 | 0 << 0);
+    mpu6000WriteRegister(MPU_RA_ACCEL_CONFIG, INV_FSR_8G << 3 | 1 << 0 | 0 << 0);
     delayMicroseconds(1);
 
     mpu6000WriteRegister(MPU_RA_INT_PIN_CFG, 0 << 7 | 0 << 6 | 0 << 5 | 1 << 4 | 0 << 3 | 0 << 2 | 0 << 1 | 0 << 0);  // INT_ANYRD_2CLEAR
