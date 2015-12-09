@@ -26,6 +26,7 @@
 #include "common/color.h"
 #include "common/axis.h"
 #include "common/maths.h"
+#include "common/filter.h"
 
 #include "drivers/sensor.h"
 #include "drivers/accgyro.h"
@@ -155,13 +156,13 @@ static void resetPidProfile(pidProfile_t *pidProfile)
 
     pidProfile->P8[ROLL] = 40;
     pidProfile->I8[ROLL] = 30;
-    pidProfile->D8[ROLL] = 45;
+    pidProfile->D8[ROLL] = 23;
     pidProfile->P8[PITCH] = 40;
     pidProfile->I8[PITCH] = 30;
-    pidProfile->D8[PITCH] = 45;
-    pidProfile->P8[YAW] = 95;
+    pidProfile->D8[PITCH] = 23;
+    pidProfile->P8[YAW] = 100;
     pidProfile->I8[YAW] = 50;
-    pidProfile->D8[YAW] = 20;
+    pidProfile->D8[YAW] = 12;
     pidProfile->P8[PIDALT] = 50;
     pidProfile->I8[PIDALT] = 0;
     pidProfile->D8[PIDALT] = 0;
@@ -174,14 +175,15 @@ static void resetPidProfile(pidProfile_t *pidProfile)
     pidProfile->P8[PIDNAVR] = 25; // NAV_P * 10;
     pidProfile->I8[PIDNAVR] = 33; // NAV_I * 100;
     pidProfile->D8[PIDNAVR] = 83; // NAV_D * 1000;
-    pidProfile->P8[PIDLEVEL] = 20;
-    pidProfile->I8[PIDLEVEL] = 20;
+    pidProfile->P8[PIDLEVEL] = 50;
+    pidProfile->I8[PIDLEVEL] = 50;
     pidProfile->D8[PIDLEVEL] = 100;
     pidProfile->P8[PIDMAG] = 40;
     pidProfile->P8[PIDVEL] = 120;
     pidProfile->I8[PIDVEL] = 45;
     pidProfile->D8[PIDVEL] = 1;
 
+    pidProfile->gyro_soft_lpf = 0;   // LOW filtering by default
     pidProfile->dterm_cut_hz = 40;
     pidProfile->yaw_pterm_cut_hz = 50;
 
@@ -335,7 +337,6 @@ void resetRcControlsConfig(rcControlsConfig_t *rcControlsConfig) {
 }
 
 void resetMixerConfig(mixerConfig_t *mixerConfig) {
-    mixerConfig->pid_at_min_throttle = 1;
     mixerConfig->yaw_motor_direction = 1;
     mixerConfig->yaw_jump_prevention_limit = 200;
 #ifdef USE_SERVOS
@@ -404,8 +405,9 @@ static void resetConf(void)
 
     // global settings
     masterConfig.current_profile_index = 0;     // default profile
-    masterConfig.dcm_kp = 10000;                // 1.0 * 10000
+    masterConfig.dcm_kp = 2500;                // 1.0 * 10000
     masterConfig.dcm_ki = 0;                    // 0.003 * 10000
+    masterConfig.gyro_lpf = 1;                 // 1KHZ or 8KHZ
 
     resetAccelerometerTrims(&masterConfig.accZero);
 
@@ -445,12 +447,13 @@ static void resetConf(void)
     masterConfig.rxConfig.rssi_channel = 0;
     masterConfig.rxConfig.rssi_scale = RSSI_SCALE_DEFAULT;
     masterConfig.rxConfig.rssi_ppm_invert = 0;
+    masterConfig.rxConfig.rcSmoothing = 1;
 
     resetAllRxChannelRangeConfigurations(masterConfig.rxConfig.channelRanges);
 
     masterConfig.inputFilteringMode = INPUT_FILTERING_DISABLED;
 
-    masterConfig.retarded_arm = 0;
+    masterConfig.retarded_arm = 0;  // TODO - Cleanup retarded arm support
     masterConfig.disarm_kill_switch = 1;
     masterConfig.auto_disarm_delay = 5;
     masterConfig.small_angle = 25;
@@ -831,14 +834,6 @@ void validateAndFixConfig(void)
     // hardware supports serial port inversion, make users life easier for those that want to connect SBus RX's
     masterConfig.telemetryConfig.telemetry_inversion = 1;
 #endif
-
-    /*
-     * The retarded_arm setting is incompatible with pid_at_min_throttle because full roll causes the craft to roll over on the ground.
-     * The pid_at_min_throttle implementation ignores yaw on the ground, but doesn't currently ignore roll when retarded_arm is enabled.
-     */
-    if (masterConfig.retarded_arm && masterConfig.mixerConfig.pid_at_min_throttle) {
-        masterConfig.mixerConfig.pid_at_min_throttle = 0;
-    }
 
 #if defined(CC3D) && defined(SONAR) && defined(USE_SOFTSERIAL1)
     if (feature(FEATURE_SONAR) && feature(FEATURE_SOFTSERIAL)) {

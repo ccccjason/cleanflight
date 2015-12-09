@@ -184,6 +184,7 @@
 #define SERIAL_RX
 #define AUTOTUNE
 #define USE_SERVOS
+#define GTUNE
 #define USE_CLI
 
 #define SPEKTRUM_BIND

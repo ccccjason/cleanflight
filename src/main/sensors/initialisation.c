@@ -105,11 +105,15 @@ const extiConfig_t *selectMPUIntExtiConfig(void)
             .exti_irqn = EXTI15_10_IRQn
     };
 
+#ifdef AFROMINI
+    return &nazeRev5MPUIntExtiConfig;
+#else
     if (hardwareRevision < NAZE32_REV5) {
         return &nazeRev4MPUIntExtiConfig;
     } else {
         return &nazeRev5MPUIntExtiConfig;
     }
+#endif
 #endif
 
 #if defined(SPRACINGF3)
@@ -164,7 +168,7 @@ const extiConfig_t *selectMPUIntExtiConfig(void)
     return &MotolabF3MPU6050Config;
 #endif
 
-#ifdef VRBRAIN
+#if defined (VRBRAIN)
     static const extiConfig_t VRBRAINMPU6000Config = {
             .gpioAHBPeripherals = RCC_AHB1Periph_GPIOD,
             .gpioPort = GPIOD,

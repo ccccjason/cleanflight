@@ -162,5 +162,14 @@
 #define SERIAL_RX
 #define AUTOTUNE
 #define USE_SERVOS
+#define GTUNE
 #define USE_CLI
-//#define USE_SERIAL_1WIRE
+
+#define USE_SERIAL_1WIRE
+
+// STM32F103CBT6-LQFP48 Pin30 (PA9) TX - PC3 connects to onboard CP2102 RX
+#define S1W_TX_GPIO         GPIOA
+#define S1W_TX_PIN          GPIO_Pin_9
+// STM32F103CBT6-LQFP48 Pin31 (PA10) RX - PC1 to onboard CP2102 TX
+#define S1W_RX_GPIO         GPIOA
+#define S1W_RX_PIN          GPIO_Pin_10
