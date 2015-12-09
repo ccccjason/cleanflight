@@ -327,11 +327,10 @@ bool mpuAccRead(int16_t *accData)
 {
     uint8_t data[6];
 
-/*
-#ifdef STM32F40_41xxx
-    spiSetDivisor(MPU6000_SPI_INSTANCE, SPI_21MHZ_CLOCK_DIVIDER);
+#ifdef VRBRAIN
+    spiSetDivisor(MPU6000_SPI_INSTANCE, SPI2_5MHZ_CLOCK_DIVIDER);
 #endif
-*/
+
     bool ack = mpuConfiguration.read(MPU_RA_ACCEL_XOUT_H, 6, data);
     if (!ack) {
         return false;
@@ -348,11 +347,9 @@ bool mpuGyroRead(int16_t *gyroADC)
 {
     uint8_t data[6];
 
-/*
-#ifdef STM32F40_41xxx
-    spiSetDivisor(MPU6000_SPI_INSTANCE, SPI_21MHZ_CLOCK_DIVIDER);
+#ifdef VRBRAIN
+    spiSetDivisor(MPU6000_SPI_INSTANCE, SPI2_5MHZ_CLOCK_DIVIDER);
 #endif
-*/
 
     bool ack = mpuConfiguration.read(mpuConfiguration.gyroReadXRegister, 6, data);
     if (!ack) {
