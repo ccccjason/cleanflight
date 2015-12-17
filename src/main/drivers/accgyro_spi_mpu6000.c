@@ -241,7 +241,7 @@ static void mpu6000AccAndGyroInit(uint8_t lpf) {
     delayMicroseconds(1);
 
     /*
-    // Set Fchoice for the gyro to 11 by writing its inverse to bits 1:0 of GYRO_CONFIG
+    // Set Fchoice for the gyro its inverse to bits 1:0 of GYRO_CONFIG
     mpu6000WriteRegister(MPU_RA_CONFIG, 0 << 1 | 1 << 0);
     delayMicroseconds(1);
 	*/
