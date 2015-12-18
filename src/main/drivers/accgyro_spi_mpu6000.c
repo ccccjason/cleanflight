@@ -237,8 +237,8 @@ static void mpu6000AccAndGyroInit(uint8_t lpf) {
     mpu6000WriteRegister(MPU_RA_PWR_MGMT_2, 0x00);
     delayMicroseconds(1);
 
-    mpu6000WriteRegister(MPU_RA_FIFO_EN, 0x00); //Disable FIFO
-    delayMicroseconds(1);
+    //mpu6000WriteRegister(MPU_RA_FIFO_EN, 0x00); //Disable FIFO
+    //delayMicroseconds(1);
 
     /*
     // Set Fchoice for the gyro its inverse to bits 1:0 of GYRO_CONFIG
