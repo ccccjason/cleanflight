@@ -107,6 +107,7 @@ void useRcControlsConfig(modeActivationCondition_t *modeActivationConditions, es
     #ifdef STM32F10X_HD
         #define FLASH_PAGE_COUNT 128
     #endif
+
 #endif
 
 #if defined(FLASH_SIZE)
@@ -141,7 +142,7 @@ static uint32_t activeFeaturesLatch = 0;
 static uint8_t currentControlRateProfileIndex = 0;
 controlRateConfig_t *currentControlRateProfile;
 
-static const uint8_t EEPROM_CONF_VERSION = 115;
+static const uint8_t EEPROM_CONF_VERSION = 116;
 
 static void resetAccelerometerTrims(flightDynamicsTrims_t *accelerometerTrims)
 {
@@ -162,7 +163,7 @@ static void resetPidProfile(pidProfile_t *pidProfile)
     pidProfile->D8[PITCH] = 23;
     pidProfile->P8[YAW] = 100;
     pidProfile->I8[YAW] = 50;
-    pidProfile->D8[YAW] = 12;
+    pidProfile->D8[YAW] = 10;
     pidProfile->P8[PIDALT] = 50;
     pidProfile->I8[PIDALT] = 0;
     pidProfile->D8[PIDALT] = 0;
@@ -183,15 +184,15 @@ static void resetPidProfile(pidProfile_t *pidProfile)
     pidProfile->I8[PIDVEL] = 45;
     pidProfile->D8[PIDVEL] = 1;
 
-    pidProfile->gyro_soft_lpf = 0;   // LOW filtering by default
+    pidProfile->gyro_soft_lpf = 1;   // filtering ON by default
     pidProfile->dterm_cut_hz = 40;
-    pidProfile->yaw_pterm_cut_hz = 50;
+    pidProfile->yaw_pterm_cut_hz = 0;
 
     pidProfile->P_f[ROLL] = 1.5f;     // new PID with preliminary defaults test carefully
-    pidProfile->I_f[ROLL] = 0.4f;
+    pidProfile->I_f[ROLL] = 0.3f;
     pidProfile->D_f[ROLL] = 0.02f;
     pidProfile->P_f[PITCH] = 1.5f;
-    pidProfile->I_f[PITCH] = 0.4f;
+    pidProfile->I_f[PITCH] = 0.3f;
     pidProfile->D_f[PITCH] = 0.02f;
     pidProfile->P_f[YAW] = 4.0f;
     pidProfile->I_f[YAW] = 0.4f;
@@ -407,7 +408,7 @@ static void resetConf(void)
     masterConfig.current_profile_index = 0;     // default profile
     masterConfig.dcm_kp = 2500;                // 1.0 * 10000
     masterConfig.dcm_ki = 0;                    // 0.003 * 10000
-    masterConfig.gyro_lpf = 1;                 // 1KHZ or 8KHZ
+    masterConfig.gyro_lpf = 1;                 // 188HZ
 
     resetAccelerometerTrims(&masterConfig.accZero);
 
@@ -447,7 +448,7 @@ static void resetConf(void)
     masterConfig.rxConfig.rssi_channel = 0;
     masterConfig.rxConfig.rssi_scale = RSSI_SCALE_DEFAULT;
     masterConfig.rxConfig.rssi_ppm_invert = 0;
-    masterConfig.rxConfig.rcSmoothing = 1;
+    masterConfig.rxConfig.rcSmoothing = 0;
 
     resetAllRxChannelRangeConfigurations(masterConfig.rxConfig.channelRanges);
 
@@ -702,7 +703,8 @@ void activateConfig(void)
         &currentProfile->pidProfile
     );
 
-    useGyroConfig(&masterConfig.gyroConfig, filterGetFIRCoefficientsTable(currentProfile->pidProfile.gyro_soft_lpf));
+
+    useGyroConfig(&masterConfig.gyroConfig, currentProfile->pidProfile.gyro_soft_lpf); // Leave this for more coefficients in the future
 
 #ifdef TELEMETRY
     telemetryUseConfig(&masterConfig.telemetryConfig);
@@ -931,7 +933,7 @@ void writeEEPROM(void)
 #else
 				status = FLASH_ErasePage(CONFIG_START_FLASH_ADDRESS + wordOffset);
 #endif
-                if (status != FLASH_COMPLETE) {
+				if (status != FLASH_COMPLETE) {
                     break;
                 }
             }

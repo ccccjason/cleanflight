@@ -48,10 +48,8 @@
 #include "config/runtime_config.h"
 
 extern float dT;
-extern float totalErrorRatioLimit;
+extern bool motorLimitReached;
 extern bool allowITermShrinkOnly;
-
-#define CALC_OFFSET(x) ( (x > 0) ?  x : -x )
 
 int16_t axisPID[3];
 
@@ -96,7 +94,8 @@ static void pidLuxFloat(pidProfile_t *pidProfile, controlRateConfig_t *controlRa
     float ITerm,PTerm,DTerm;
     int32_t stickPosAil, stickPosEle, mostDeflectedPos;
     static float lastError[3];
-    float delta;
+    static float delta1[3], delta2[3];
+    float delta, deltaSum;
     int axis;
     float horizonLevelStrength = 1;
     static float previousErrorGyroIf[3] = { 0.0f, 0.0f, 0.0f };
@@ -162,10 +161,6 @@ static void pidLuxFloat(pidProfile_t *pidProfile, controlRateConfig_t *controlRa
         // multiplication of rcCommand corresponds to changing the sticks scaling here
         RateError = AngleRate - gyroRate;
 
-        if (IS_RC_MODE_ACTIVE(BOXAIRMODE)) {
-            RateError = RateError * totalErrorRatioLimit;
-        }
-
         // -----calculate P component
         PTerm = RateError * pidProfile->P_f[axis] * PIDweight[axis] / 100;
 
@@ -174,13 +169,13 @@ static void pidLuxFloat(pidProfile_t *pidProfile, controlRateConfig_t *controlRa
         }
 
         // -----calculate I component.
-        errorGyroIf[axis] = constrainf(errorGyroIf[axis] + RateError * dT * pidProfile->I_f[axis] * 10, -250.0f, 250.0f);
+        errorGyroIf[axis] = constrainf(errorGyroIf[axis] + 0.5f * (lastError[axis] + RateError) * dT * pidProfile->I_f[axis] * 10, -250.0f, 250.0f);
 
-        if (allowITermShrinkOnly || totalErrorRatioLimit < 0.98f) {
-            if (CALC_OFFSET(errorGyroIf[axis]) < CALC_OFFSET(previousErrorGyroIf[axis])) {
+        if (allowITermShrinkOnly || motorLimitReached) {
+            if (ABS(errorGyroIf[axis]) < ABS(previousErrorGyroIf[axis])) {
                 previousErrorGyroIf[axis] = errorGyroIf[axis];
             } else {
-                errorGyroIf[axis] = constrain(errorGyroIf[axis], -CALC_OFFSET(previousErrorGyroIf[axis]), CALC_OFFSET(previousErrorGyroIf[axis]));
+                errorGyroIf[axis] = constrain(errorGyroIf[axis], -ABS(previousErrorGyroIf[axis]), ABS(previousErrorGyroIf[axis]));
             }
         } else {
             previousErrorGyroIf[axis] = errorGyroIf[axis];
@@ -198,12 +193,21 @@ static void pidLuxFloat(pidProfile_t *pidProfile, controlRateConfig_t *controlRa
         // would be scaled by different dt each time. Division by dT fixes that.
         delta *= (1.0f / dT);
 
-        // Dterm low pass
-        if (pidProfile->dterm_cut_hz) {
-            delta = filterApplyPt1(delta, &DTermState[axis], pidProfile->dterm_cut_hz, dT);
+        if (!pidProfile->gyro_soft_lpf) {
+            // add moving average here to reduce noise
+            deltaSum = (delta1[axis] + delta2[axis] + delta) / 3;
+            delta2[axis] = delta1[axis];
+            delta1[axis] = delta;
+        } else {
+            deltaSum = delta;
         }
 
-        DTerm = constrainf(delta * pidProfile->D_f[axis] * PIDweight[axis] / 100, -300.0f, 300.0f);
+        // Dterm low pass
+        if (pidProfile->dterm_cut_hz) {
+            deltaSum = filterApplyPt1(delta, &DTermState[axis], pidProfile->dterm_cut_hz, dT);
+        }
+
+        DTerm = constrainf(deltaSum * pidProfile->D_f[axis] * PIDweight[axis] / 100, -300.0f, 300.0f);
 
         // -----calculate total PID output
         axisPID[axis] = constrain(lrintf(PTerm + ITerm + DTerm), -1000, 1000);
@@ -229,7 +233,8 @@ static void pidRewrite(pidProfile_t *pidProfile, controlRateConfig_t *controlRat
 
     int32_t errorAngle;
     int axis;
-    int32_t delta;
+    int32_t delta, deltaSum;
+    static int32_t delta1[3], delta2[3];
     int32_t PTerm, ITerm, DTerm;
     static int32_t lastError[3] = { 0, 0, 0 };
     static int32_t previousErrorGyroI[3] = { 0, 0, 0 };
@@ -293,10 +298,6 @@ static void pidRewrite(pidProfile_t *pidProfile, controlRateConfig_t *controlRat
         // multiplication of rcCommand corresponds to changing the sticks scaling here
         RateError = AngleRateTmp - (gyroADC[axis] / 4);
 
-        if (IS_RC_MODE_ACTIVE(BOXAIRMODE)) {
-            RateError = RateError * totalErrorRatioLimit;
-        }
-
         // -----calculate P component
         PTerm = (RateError * pidProfile->P8[axis] * PIDweight[axis] / 100) >> 7;
 
@@ -309,7 +310,7 @@ static void pidRewrite(pidProfile_t *pidProfile, controlRateConfig_t *controlRat
         // Precision is critical, as I prevents from long-time drift. Thus, 32 bits integrator is used.
         // Time correction (to avoid different I scaling for different builds based on average cycle time)
         // is normalized to cycle time = 2048.
-        errorGyroI[axis] = errorGyroI[axis] + ((RateError * (uint16_t)targetLooptime) >> 11) * pidProfile->I8[axis];
+        errorGyroI[axis] = errorGyroI[axis] + ((((lastError[axis] + RateError) / 2) * (uint16_t)targetLooptime) >> 11) * pidProfile->I8[axis];
 
         // limit maximum integrator value to prevent WindUp - accumulating extreme values when system is saturated.
         // I coefficient (I8) moved before integration to make limiting independent from PID settings
@@ -317,11 +318,11 @@ static void pidRewrite(pidProfile_t *pidProfile, controlRateConfig_t *controlRat
 
         ITerm = errorGyroI[axis] >> 13;
 
-        if (allowITermShrinkOnly || totalErrorRatioLimit < 0.98f) {
-            if (CALC_OFFSET(errorGyroI[axis]) < CALC_OFFSET(previousErrorGyroI[axis])) {
+        if (allowITermShrinkOnly || motorLimitReached) {
+            if (ABS(errorGyroI[axis]) < ABS(previousErrorGyroI[axis])) {
                 previousErrorGyroI[axis] = errorGyroI[axis];
             } else {
-                errorGyroI[axis] = constrain(errorGyroI[axis], -CALC_OFFSET(previousErrorGyroI[axis]), CALC_OFFSET(previousErrorGyroI[axis]));
+                errorGyroI[axis] = constrain(errorGyroI[axis], -ABS(previousErrorGyroI[axis]), ABS(previousErrorGyroI[axis]));
             }
         } else {
             previousErrorGyroI[axis] = errorGyroI[axis];
@@ -335,12 +336,21 @@ static void pidRewrite(pidProfile_t *pidProfile, controlRateConfig_t *controlRat
         // would be scaled by different dt each time. Division by dT fixes that.
         delta = (delta * ((uint16_t) 0xFFFF / ((uint16_t)targetLooptime >> 4))) >> 6;
 
-        // Dterm delta low pass
-        if (pidProfile->dterm_cut_hz) {
-            delta = filterApplyPt1(delta, &DTermState[axis], pidProfile->dterm_cut_hz, dT);
+        if (!pidProfile->gyro_soft_lpf) {
+            // add moving average here to reduce noise
+            deltaSum = delta1[axis] + delta2[axis] + delta;
+            delta2[axis] = delta1[axis];
+            delta1[axis] = delta;
+        } else {
+            deltaSum = delta * 2;
         }
 
-        DTerm = (delta * 2 * pidProfile->D8[axis] * PIDweight[axis] / 100) >> 8; // Multiplied by 2 to approximately match old scaling
+        // Dterm delta low pass
+        if (pidProfile->dterm_cut_hz) {
+            deltaSum = filterApplyPt1(deltaSum, &DTermState[axis], pidProfile->dterm_cut_hz, dT);
+        }
+
+        DTerm = (deltaSum * pidProfile->D8[axis] * PIDweight[axis] / 100) >> 8;
 
         // -----calculate total PID output
         axisPID[axis] = PTerm + ITerm + DTerm;

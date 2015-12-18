@@ -96,7 +96,6 @@ enum {
 /* IBat monitoring interval (in microseconds) - 6 default looptimes */
 #define IBATINTERVAL (6 * 3500)
 #define GYRO_WATCHDOG_DELAY 100  // Watchdog for boards without interrupt for gyro
-//#define GYRO_WATCHDOG_DELAY 0  // Watchdog for boards without interrupt for gyro
 #define PREVENT_RX_PROCESS_PRE_LOOP_TRIGGER 80 // Prevent RX processing before expected loop trigger
 #define PREVENT_BARO_READ_PRE_LOOP_TRIGGER 150 // Prevent BARO processing before expected loop trigger
 #define GYRO_RATE 0.001f  // Gyro refresh rate 1khz
@@ -107,8 +106,8 @@ enum {
 #define ERROR_RESET_DEACTIVATE_DELAY (1 * 1000)   // 1 sec delay to disable AIR MODE Iterm resetting
 bool allowITermShrinkOnly = false;
 
-uint32_t previousTime = 0;
 uint32_t currentTime = 0;
+uint32_t previousTime = 0;
 uint16_t cycleTime = 0;         // this is the number in micro second to achieve a full loop, it can differ a little and is taken into account in the PID loop
 float dT = GYRO_RATE;  // dT set for gyro refresh rate
 
@@ -603,6 +602,8 @@ void processRx(void)
             } else {
                 allowITermShrinkOnly = false;   // Reset shrinking for Iterm
             }
+        } else {
+            allowITermShrinkOnly = false;   // Reset shrinking. Usefull when flipping between normal and AIR mode
         }
     }
 
@@ -803,8 +804,6 @@ void loop(void)
 
     currentTime = micros();
     if (gyroSyncCheckUpdate() || (int32_t)(currentTime - (loopTime + GYRO_WATCHDOG_DELAY)) >= 0) {
-    //if ((gyroSyncCheckUpdate() && ((int32_t)(currentTime - loopTime) >= 0)) || (int32_t)(currentTime - (loopTime + GYRO_WATCHDOG_DELAY)) >= 0) {
-    //if ((int32_t)(currentTime - loopTime) >= 0) {
 
         loopTime = currentTime + targetLooptime;
 
@@ -895,7 +894,7 @@ void loop(void)
 			motorsTime = currentTime + MOTORS_WRITE_TIME;
 #endif
 
-        if (motorControlEnable) {
+		if (motorControlEnable) {
             writeMotors();
         }
 
@@ -913,6 +912,7 @@ void loop(void)
 #ifdef VRBRAIN
 		}
 #endif
+
     }
 
 #ifdef TELEMETRY
