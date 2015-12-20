@@ -42,19 +42,14 @@ bool gyroSyncCheckUpdate(void) {
 }
 
 void gyroUpdateSampleRate(uint8_t lpf) {
-    int gyroSamplePeriod, gyroSyncDenominator;
-
     if (!lpf) {
-        gyroSamplePeriod = 125;
-        gyroSyncDenominator = 8; // Sample every 8th gyro measurement
+        targetLooptime = 1000;
     } else {
-        gyroSamplePeriod = 1000;
-        gyroSyncDenominator = 1; // Full Sampling
+        targetLooptime = 1000;
     }
 
     // calculate gyro divider and targetLooptime (expected cycleTime)
-    mpuDividerDrops  = gyroSyncDenominator - 1;
-    targetLooptime = (mpuDividerDrops + 1) * gyroSamplePeriod;
+    mpuDividerDrops  = 0; //Always full sampling
 }
 
 

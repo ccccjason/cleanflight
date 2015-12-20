@@ -132,22 +132,25 @@ void mpu6000SpiGyroInit(uint8_t lpf)
 
     spiResetErrorCounter(MPU6000_SPI_INSTANCE);
 
+/*
 #ifdef VRBRAIN
     spiSetDivisor(MPU6000_SPI_INSTANCE, SPI2_1MHZ_CLOCK_DIVIDER);
 #else
     spiSetDivisor(MPU6000_SPI_INSTANCE, SPI_0_5625MHZ_CLOCK_DIVIDER);
 #endif
-
-    // Accel and Gyro DLPF Setting
-    mpu6000WriteRegister(MPU6000_CONFIG, lpf);
+    //mpu6000WriteRegister(MPU_RA_CONFIG, lpf);
+    mpu6000WriteRegister(MPU_RA_CONFIG, 0 << 1 | 1 << 0);
     delayMicroseconds(1);
+*/
 
+/*
     int16_t data[3];
     mpuGyroRead(data);
     if ((((int8_t)data[1]) == -1 && ((int8_t)data[0]) == -1) || spiGetErrorCounter(MPU6000_SPI_INSTANCE) != 0) {
         spiResetErrorCounter(MPU6000_SPI_INSTANCE);
         failureMode(FAILURE_GYRO_INIT_FAILED);
     }
+*/
 }
 
 void mpu6000SpiAccInit(void)
@@ -237,24 +240,23 @@ static void mpu6000AccAndGyroInit(uint8_t lpf) {
     mpu6000WriteRegister(MPU_RA_PWR_MGMT_2, 0x00);
     delayMicroseconds(1);
 
-    //mpu6000WriteRegister(MPU_RA_FIFO_EN, 0x00); //Disable FIFO
-    //delayMicroseconds(1);
-
-    /*
-    // Set Fchoice for the gyro its inverse to bits 1:0 of GYRO_CONFIG
-    mpu6000WriteRegister(MPU_RA_CONFIG, 0 << 1 | 1 << 0);
+#ifdef VRBRAIN
+    mpu6000WriteRegister(MPU_RA_FIFO_EN, 0x00); //Disable FIFO
     delayMicroseconds(1);
-	*/
 
-    // Accel Sample Rate 1kHz
-    // Gyroscope Output Rate =  1kHz when the DLPF is enabled
+    // Set Fchoice for the gyro its inverse to bits 1:0 of GYRO_CONFIG (32 Khz)
+    mpu6000WriteRegister(MPU_RA_CONFIG, 1 << 1 | 0 << 0);
+    delayMicroseconds(1);
+
+    mpu6000WriteRegister(MPU_RA_GYRO_CONFIG, INV_FSR_2000DPS << 3 | 0 << 1 | 1 << 0);
+    delayMicroseconds(1);
+#else
+    //Sample Rate (Always full sampling)
     mpu6000WriteRegister(MPU_RA_SMPLRT_DIV, gyroMPU6xxxGetDividerDrops());
     delayMicroseconds(1);
-
     // Gyro +/- 1000 DPS Full Scale
     mpu6000WriteRegister(MPU_RA_GYRO_CONFIG, INV_FSR_2000DPS << 3);
-    //mpu6000WriteRegister(MPU_RA_GYRO_CONFIG, INV_FSR_2000DPS << 3 | 0 << 1 | 1 << 0);
-    delayMicroseconds(1);
+#endif
 
     // Accel +/- 8 G Full Scale
     mpu6000WriteRegister(MPU_RA_ACCEL_CONFIG, INV_FSR_8G << 3);

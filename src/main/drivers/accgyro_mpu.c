@@ -44,10 +44,12 @@
 #include "accgyro_spi_mpu6500.h"
 #include "accgyro_mpu.h"
 
-//#define DEBUG_MPU_DATA_READY_INTERRUPT
+
+#define DEBUG_MPU_DATA_READY_INTERRUPT
 
 static bool mpuReadRegisterI2C(uint8_t reg, uint8_t length, uint8_t* data);
 static bool mpuWriteRegisterI2C(uint8_t reg, uint8_t data);
+static bool mpuGyroReadData(void);
 
 static void mpu6050FindRevision(void);
 
@@ -70,6 +72,10 @@ static const extiConfig_t *mpuIntExtiConfig = NULL;
 
 #define MPU_INQUIRY_MASK   0x7E
 
+static int gyroSamples = 0;
+static int32_t gyroSum[3];
+static int numSamples = 32;
+
 mpuDetectionResult_t *detectMpu(const extiConfig_t *configToUse)
 {
     memset(&mpuDetectionResult, 0, sizeof(mpuDetectionResult));
@@ -83,6 +89,11 @@ mpuDetectionResult_t *detectMpu(const extiConfig_t *configToUse)
 
     // MPU datasheet specifies 30ms.
     delay(35);
+
+	gyroSamples=0;
+	gyroSum[0]=0;
+	gyroSum[1]=0;
+	gyroSum[2]=0;
 
 #ifdef USE_SPI
 	bool detectedSpiSensor = detectSPISensorsAndUpdateDetectionResult();
@@ -195,7 +206,12 @@ void MPU_DATA_READY_EXTI_Handler(void)
 
     EXTI_ClearITPendingBit(mpuIntExtiConfig->exti_line);
 
-    mpuDataReady = true;
+    mpuGyroReadData();
+    numSamples--;
+    if (numSamples<=0){
+    	mpuDataReady = true;
+    	numSamples=32;
+    }
 
 #ifdef DEBUG_MPU_DATA_READY_INTERRUPT
     // Measure the delta in micro seconds between calls to the interrupt handler
@@ -328,7 +344,7 @@ bool mpuAccRead(int16_t *accData)
     uint8_t data[6];
 
 #ifdef VRBRAIN
-    spiSetDivisor(MPU6000_SPI_INSTANCE, SPI2_5MHZ_CLOCK_DIVIDER);
+    spiSetDivisor(MPU6000_SPI_INSTANCE, SPI2_42MHZ_CLOCK_DIVIDER);
 #endif
 
     bool ack = mpuConfiguration.read(MPU_RA_ACCEL_XOUT_H, 6, data);
@@ -343,12 +359,12 @@ bool mpuAccRead(int16_t *accData)
     return true;
 }
 
-bool mpuGyroRead(int16_t *gyroADC)
+bool mpuGyroReadData(void)
 {
     uint8_t data[6];
 
 #ifdef VRBRAIN
-    spiSetDivisor(MPU6000_SPI_INSTANCE, SPI2_5MHZ_CLOCK_DIVIDER);
+    spiSetDivisor(MPU6000_SPI_INSTANCE, SPI2_42MHZ_CLOCK_DIVIDER);
 #endif
 
     bool ack = mpuConfiguration.read(mpuConfiguration.gyroReadXRegister, 6, data);
@@ -356,12 +372,45 @@ bool mpuGyroRead(int16_t *gyroADC)
         return false;
     }
 
-    gyroADC[0] = (int16_t)((data[0] << 8) | data[1]);
-    gyroADC[1] = (int16_t)((data[2] << 8) | data[3]);
-    gyroADC[2] = (int16_t)((data[4] << 8) | data[5]);
+    gyroSamples++;
+    gyroSum[0] += (int16_t)((data[0] << 8) | data[1]);
+    gyroSum[1] += (int16_t)((data[2] << 8) | data[3]);
+    gyroSum[2] += (int16_t)((data[4] << 8) | data[5]);
 
     return true;
 }
+
+bool mpuGyroRead(int16_t *gyroADC)
+{
+	uint8_t i;
+
+	if(gyroSamples == 0)
+		return false;
+
+#ifdef DEBUG_MPU_DATA_READY_INTERRUPT
+    debug[1] = gyroSamples;
+    debug[2] = gyroSum[0];
+    debug[3] = (int16_t)((gyroSum[0] + (int)(gyroSamples/2))/ gyroSamples);
+#endif
+
+	//for (i=0;i<3;i++)
+	//	gyroADC[i] = (int16_t)((gyroSum[i] + (int)(gyroSamples/2))/ gyroSamples);
+
+	gyroADC[0] = (int16_t)((gyroSum[0] + (int)(gyroSamples/2))/ gyroSamples);
+	gyroADC[1] = (int16_t)((gyroSum[1] + (int)(gyroSamples/2))/ gyroSamples);
+	gyroADC[2] = (int16_t)((gyroSum[2] + (int)(gyroSamples/2))/ gyroSamples);
+
+	gyroSamples=0;
+	//for (i=0;i<3;i++)
+	//	gyroSum[i]=0;
+
+	gyroSum[0]=0;
+	gyroSum[1]=0;
+	gyroSum[2]=0;
+
+	return true;
+}
+
 
 void checkMPUDataReady(bool *mpuDataReadyPtr) {
     if (mpuDataReady) {

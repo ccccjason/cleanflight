@@ -804,6 +804,8 @@ void loop(void)
 
     currentTime = micros();
     if (gyroSyncCheckUpdate() || (int32_t)(currentTime - (loopTime + GYRO_WATCHDOG_DELAY)) >= 0) {
+	//if ((int32_t)(currentTime - (loopTime + GYRO_WATCHDOG_DELAY)) >= 0) {
+    //if ((masterConfig.gyro_lpf && (gyroSyncCheckUpdate() || (int32_t)(currentTime - (loopTime + GYRO_WATCHDOG_DELAY)) >= 0)) || (!masterConfig.gyro_lpf && (int32_t)(currentTime - loopTime) >= 0)) {
 
         loopTime = currentTime + targetLooptime;
 
