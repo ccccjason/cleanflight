@@ -890,12 +890,13 @@ void loop(void)
         writeServos();
 #endif
 
+/*
 #ifdef VRBRAIN
 		//Motors refresh rate
 		if ((int32_t)(currentTime - motorsTime) >= 0) {
 			motorsTime = currentTime + MOTORS_WRITE_TIME;
 #endif
-
+*/
 		if (motorControlEnable) {
             writeMotors();
         }
@@ -911,9 +912,11 @@ void loop(void)
         }
 #endif
 
+/*
 #ifdef VRBRAIN
 		}
 #endif
+*/
 
     }
 

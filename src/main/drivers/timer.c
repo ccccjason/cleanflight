@@ -581,10 +581,27 @@ void configTimeBase(TIM_TypeDef *tim, uint16_t period, uint8_t mhz)
     // "The counter clock frequency (CK_CNT) is equal to f CK_PSC / (PSC[15:0] + 1)." - STM32F10x Reference Manual 14.4.11
     // Thus for 1Mhz: 72000000 / 1000000 = 72, 72 - 1 = 71 = TIM_Prescaler
 #if defined (STM32F40_41xxx)
-    if(tim == TIM1 || tim == TIM8 || tim == TIM9|| tim == TIM10|| tim == TIM11)
+    if(tim == TIM1 || tim == TIM8 || tim == TIM9|| tim == TIM10|| tim == TIM11) {
+    	if (mhz == 8) {
+    		TIM_TimeBaseStructure.TIM_Prescaler = (20) - 1; //Timers for OneShot125 don't work out for STM32F4 running at 168 MHz, so we put in a timer that's 95%
+    	} else {
+    		TIM_TimeBaseStructure.TIM_Prescaler = (SystemCoreClock / ((uint32_t)mhz * 1000000)) - 1;
+    	}
+    } else {
+    	if (mhz == 8) {
+    		TIM_TimeBaseStructure.TIM_Prescaler = (10) - 1; //Timers for OneShot125 don't work out for STM32F4 running at 168 MHz, so we put in a timer that's 95%
+    	} else {
+    		TIM_TimeBaseStructure.TIM_Prescaler = (SystemCoreClock / 2 / ((uint32_t)mhz * 1000000)) - 1;
+    	}
+    }
+#elif defined (STM32F411xE)
+    if(tim == TIM1 || tim == TIM9 || tim == TIM10 || tim == TIM11) {
 		TIM_TimeBaseStructure.TIM_Prescaler = (SystemCoreClock / ((uint32_t)mhz * 1000000)) - 1;
-    else
-    	TIM_TimeBaseStructure.TIM_Prescaler = (SystemCoreClock / 2 / ((uint32_t)mhz * 1000000)) - 1;
+    	debug[1]=(SystemCoreClock / ((uint32_t)mhz * 1000000)) - 1;
+    } else {
+		TIM_TimeBaseStructure.TIM_Prescaler = (SystemCoreClock / 2 / ((uint32_t)mhz * 1000000)) - 1;
+    	debug[2]=(SystemCoreClock / 2 / ((uint32_t)mhz * 1000000)) - 1;
+    }
 #else
     TIM_TimeBaseStructure.TIM_Prescaler = (SystemCoreClock / ((uint32_t)mhz * 1000000)) - 1;
 #endif

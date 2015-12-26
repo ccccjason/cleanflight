@@ -29,6 +29,7 @@ float filterApplyPt1(float input, filterStatePt1_t *filter, uint8_t f_cut, float
 
 // 7 Tap FIR filter as described here:
 // Thanks to Qcopter
+/*
 void filterApplyFIR(int16_t data[]) {
     int16_t FIRcoeff[7] = { 12, 23, 40, 51, 52, 40, 38 }; // TODO - More coefficients needed. Now fixed to 1khz
     static int16_t gyro_delay[3][7] = { {0}, {0}, {0} };
@@ -44,6 +45,25 @@ void filterApplyFIR(int16_t data[]) {
         }
         gyro_delay[axis][6] = data[axis];
         FIRsum += gyro_delay[axis][6] * FIRcoeff[6];
+        data[axis] = FIRsum / 256;
+    }
+}
+*/
+void filterApplyFIR(int16_t data[]) {
+    int16_t FIRcoeff[13] = { 18,14,16,20,22,24,25,25,24,20,18,12,18 };  // 2 Khz FIR - Thanks to Boris! :)
+
+    static int16_t gyro_delay[3][13] = { {0}, {0}, {0} };
+    int32_t FIRsum;
+    int axis, i;
+
+    for (axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
+        FIRsum = 0;
+        for (i = 0; i <= 11; i++) {
+            gyro_delay[axis][i] = gyro_delay[axis][i + 1];
+            FIRsum += gyro_delay[axis][i] * FIRcoeff[i];
+        }
+        gyro_delay[axis][12] = data[axis];
+        FIRsum += gyro_delay[axis][12] * FIRcoeff[12];
         data[axis] = FIRsum / 256;
     }
 }

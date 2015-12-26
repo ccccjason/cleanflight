@@ -244,11 +244,8 @@ static void mpu6000AccAndGyroInit(uint8_t lpf) {
     mpu6000WriteRegister(MPU_RA_FIFO_EN, 0x00); //Disable FIFO
     delayMicroseconds(1);
 
-    // Set Fchoice for the gyro its inverse to bits 1:0 of GYRO_CONFIG (32 Khz)
-    mpu6000WriteRegister(MPU_RA_CONFIG, 1 << 1 | 0 << 0);
-    delayMicroseconds(1);
-
-    mpu6000WriteRegister(MPU_RA_GYRO_CONFIG, INV_FSR_2000DPS << 3 | 0 << 1 | 1 << 0);
+    // Accel +/- 8 G Full Scale + Fchoiceb at 32 Khz (Inverse at Fchoice)
+    mpu6000WriteRegister(MPU_RA_GYRO_CONFIG, INV_FSR_2000DPS << 3 | 1 << 1 | 1 << 0);
     delayMicroseconds(1);
 #else
     //Sample Rate (Always full sampling)

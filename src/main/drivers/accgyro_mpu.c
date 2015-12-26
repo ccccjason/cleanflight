@@ -74,7 +74,7 @@ static const extiConfig_t *mpuIntExtiConfig = NULL;
 
 static int gyroSamples = 0;
 static int32_t gyroSum[3];
-static int numSamples = 32;
+static int numSamples = 8;
 
 mpuDetectionResult_t *detectMpu(const extiConfig_t *configToUse)
 {
@@ -210,7 +210,7 @@ void MPU_DATA_READY_EXTI_Handler(void)
     numSamples--;
     if (numSamples<=0){
     	mpuDataReady = true;
-    	numSamples=32;
+    	numSamples=8;
     }
 
 #ifdef DEBUG_MPU_DATA_READY_INTERRUPT
