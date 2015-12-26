@@ -87,6 +87,7 @@ void USBD_USR_DeviceConfigured (void)
 */
 void USBD_USR_DeviceConnected (void)
 {
+	delayMicroseconds(10);
 }
 
 
